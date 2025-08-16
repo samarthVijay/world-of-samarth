@@ -7,6 +7,8 @@ const CLOUD_ALT = 12;   // clouds stay above everything
 const TITLE_ALT = 10;   // floating sign below clouds, in front of spawn
 const BOARD_ALT = 2.8;  // grounded boards' center height
 const ARENA_HALF = 26;   // half-width of playable area (for clamping + walls)
+// Resolves to "/world-of-samarth/<path>" in production, "/" in dev
+const asset = (p: string) => `${import.meta.env.BASE_URL}${p.replace(/^\/+/, '')}`;
 
 // --- Simple collision system (AABBs) ---
 type AABB = { min: [number, number, number]; max: [number, number, number] };
@@ -144,8 +146,8 @@ const WHITEBOARD_CONFIG = [
       { title: "Contact", body: "<p><a href=\"mailto:samarthvijay714@gmail.com\" target=\"_blank\" rel=\"noopener noreferrer\">Email</a> · <a href=\"https://www.linkedin.com/in/samarth-vijay714/\" target=\"_blank\" rel=\"noopener noreferrer\">LinkedIn</a> · <a href=\"https://github.com/samarthVijay\" target=\"_blank\" rel=\"noopener noreferrer\">GitHub</a></p>" }
     ],
     images: [
-      "https://via.placeholder.com/360x540/f87171/ffffff?text=Contact+1",
-      "https://via.placeholder.com/360x540/ef4444/ffffff?text=Contact+2",
+      asset('images/imageme1.jpeg'),
+      asset('images/imageme2.jpeg'),
       "https://via.placeholder.com/360x540/dc2626/ffffff?text=Contact+3"
     ],
     image: "https://via.placeholder.com/400x300/f87171/ffffff?text=Contact",
@@ -769,7 +771,7 @@ function ThickSkySign({ text, rgbActive }: { text: string; rgbActive: boolean })
     }
 
     // center text
-    ctx.fillStyle="#ffffff"; ctx.font="700 200px 'Press Start 2P', monospace"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(text.toUpperCase(), canvas.width/2, canvas.height/2+10);
+    ctx.fillStyle="#ffffff"; ctx.font="600 200px 'Press Start 2P', monospace"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(text.toUpperCase(), canvas.width/2, canvas.height/2+10);
     texRef.current!.needsUpdate = true;
   };
 
