@@ -148,7 +148,7 @@ const WHITEBOARD_CONFIG = [
     images: [
       asset('images/imageme1.jpeg'),
       asset('images/imageme2.jpeg'),
-      "https://via.placeholder.com/360x540/dc2626/ffffff?text=Contact+3"
+      "https://via.placeholder.com/360x540/dc2626/ffffff?text=Contact+3",
     ],
     image: "https://via.placeholder.com/400x300/f87171/ffffff?text=Contact",
   },
