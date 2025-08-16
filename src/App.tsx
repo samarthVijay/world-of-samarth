@@ -23,7 +23,7 @@ function getParkourDefs(){
   const defs: {x:number; z:number; w:number; d:number; h:number}[] = [];
   const w = 1.6, d = 1.6; // box footprint
   const R = 14;           // circle radius — outside the 4 boards ring
-  const steps = 18;       // boxes around
+  const steps = 18;       // boxes aroundx
   const angleStep = w / R; // arc length ~ box width => edge-to-edge
   let h = 0.8;            // starting height
   for(let i=0;i<steps;i++){
@@ -85,7 +85,7 @@ const WHITEBOARD_CONFIG = [
       asset('images/imagejetbot3.gif'),
       asset('images/imagejetbot2.jpeg'),
       asset('images/imagelidar1.jpeg'),
-      asset('images/imagesnake1.jpeg'),
+      asset('images/imagesnake1.jpg'),
     ],
     image: "https://via.placeholder.com/400x300/4ade80/ffffff?text=Projects",
   },
@@ -239,7 +239,7 @@ export default function App() {
 
       {!activeBoard && (
         <div style={{ position: "fixed", top: 10, left: "50%", transform: "translateX(-50%)", background: "rgba(0,0,0,0.5)", color: "#fff", padding: "8px 12px", borderRadius: 10, zIndex: 10, fontSize: 14 }}>
-          Click to lock the mouse · WASD move · Space jump · F to toggle ladder climb · Press <b>E</b> near the golden button · ESC to close
+          Click to lock the mouse · WASD move · Space jump · F to toggle ladder climb · Press <b>E</b> near the golden button · ESC to close · Click M to mute/unmute
         </div>
       )}
       <BackgroundMusic src="audio/bg.mp3" maxVolume={0.6} />
@@ -825,7 +825,7 @@ function ThickSkySign({ text, rgbActive }: { text: string; rgbActive: boolean })
     }
 
     // center text
-    ctx.fillStyle="#ffffff"; ctx.font="400 200px 'Press Start 2P', monospace"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(text.toUpperCase(), canvas.width/2, canvas.height/2+10);
+    ctx.fillStyle="#ffffff"; ctx.font="700 150px 'Press Start 2P', monospace"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(text.toUpperCase(), canvas.width/2, canvas.height/2+10);
     texRef.current!.needsUpdate = true;
   };
 
