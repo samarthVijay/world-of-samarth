@@ -193,7 +193,7 @@ export default function App() {
 
         <World />
         <GroundedWhiteboards setActiveBoard={setActiveBoard} />
-        <ThickSkySign text="WELCOME HOME" rgbActive={rgbBorder} />
+        <ThickSkySign text="WELCOME TO MY WORLD" rgbActive={rgbBorder} />
 
         <MouseLookControls enabled={!activeBoard} initialYaw={0} initialPitch={-0.1} />
         <MovementControls enabled={!activeBoard} speed={3.5} />
@@ -769,7 +769,7 @@ function ThickSkySign({ text, rgbActive }: { text: string; rgbActive: boolean })
     }
 
     // center text
-    ctx.fillStyle="#ffffff"; ctx.font="900 200px 'Press Start 2P', monospace"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(text.toUpperCase(), canvas.width/2, canvas.height/2+10);
+    ctx.fillStyle="#ffffff"; ctx.font="700 200px 'Press Start 2P', monospace"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(text.toUpperCase(), canvas.width/2, canvas.height/2+10);
     texRef.current!.needsUpdate = true;
   };
 
