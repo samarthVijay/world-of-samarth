@@ -772,7 +772,7 @@ function ThickSkySign({ text, rgbActive }: { text: string; rgbActive: boolean })
     }
 
     // center text
-    ctx.fillStyle="#ffffff"; ctx.font="600 200px 'Press Start 2P', monospace"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(text.toUpperCase(), canvas.width/2, canvas.height/2+10);
+    ctx.fillStyle="#ffffff"; ctx.font="400 200px 'Press Start 2P', monospace"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(text.toUpperCase(), canvas.width/2, canvas.height/2+10);
     texRef.current!.needsUpdate = true;
   };
 
