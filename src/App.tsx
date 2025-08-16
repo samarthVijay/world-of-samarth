@@ -81,9 +81,9 @@ const WHITEBOARD_CONFIG = [
       }
     ],
     images: [
-      asset('images/imagejetbot2.jpeg'),
-      asset('images/imagelidar1.jpeg'),
-      asset('images/imagesnake1.jpeg')
+      "https://via.placeholder.com/360x540/4ade80/ffffff?text=Proj+1",
+      "https://via.placeholder.com/360x540/22c55e/ffffff?text=Proj+2",
+      "https://via.placeholder.com/360x540/10b981/ffffff?text=Proj+3"
     ],
     image: "https://via.placeholder.com/400x300/4ade80/ffffff?text=Projects",
   },
@@ -148,7 +148,7 @@ const WHITEBOARD_CONFIG = [
     images: [
       asset('images/imageme1.jpeg'),
       asset('images/imageme2.jpeg'),
-      asset('images/imageme3.jpeg')
+      "https://via.placeholder.com/360x540/dc2626/ffffff?text=Contact+3"
     ],
     image: "https://via.placeholder.com/400x300/f87171/ffffff?text=Contact",
   },
