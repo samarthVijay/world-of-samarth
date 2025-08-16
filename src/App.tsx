@@ -82,9 +82,10 @@ const WHITEBOARD_CONFIG = [
     ],
     images: [
       asset('images/imagejetbot1.jpeg'),
+      asset('images/imagejetbot3.gif'),
       asset('images/imagejetbot2.jpeg'),
       asset('images/imagelidar1.jpeg'),
-      asset('images/imagejsnake1.jpeg'),
+      asset('images/imagesnake1.jpeg'),
     ],
     image: "https://via.placeholder.com/400x300/4ade80/ffffff?text=Projects",
   },
@@ -154,6 +155,58 @@ const WHITEBOARD_CONFIG = [
     image: "https://via.placeholder.com/400x300/f87171/ffffff?text=Contact",
   },
 ];
+function BackgroundMusic({ src = "audio/bg.mp3", maxVolume = 0.4 }) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const startedRef = useRef(false);
+
+  useEffect(() => {
+    const url = `${import.meta.env.BASE_URL}${src.replace(/^\/+/, "")}`;
+    const audio = new Audio(url);
+    audio.loop = true;
+    audio.preload = "auto";
+    (audio as any).playsInline = true;
+    audio.volume = 0;
+    audioRef.current = audio;
+
+    const start = async () => {
+      if (startedRef.current || !audioRef.current) return;
+      try {
+        await audioRef.current.play();
+        startedRef.current = true;
+        let v = 0;
+        const id = window.setInterval(() => {
+          v += 0.05;
+          audioRef.current!.volume = Math.min(maxVolume, v);
+          if (audioRef.current!.volume >= maxVolume) window.clearInterval(id);
+        }, 100);
+      } catch {
+        startedRef.current = false;
+      }
+      if (!audioRef.current!.paused) {
+        window.removeEventListener("click", start, true);
+      }
+    };
+
+    window.addEventListener("click", start, true);
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() === "m" && audioRef.current) {
+        audioRef.current.muted = !audioRef.current.muted;
+      }
+    };
+    window.addEventListener("keydown", onKey);
+
+    return () => {
+      window.removeEventListener("click", start, true);
+      window.removeEventListener("keydown", onKey);
+      audioRef.current?.pause();
+      if (audioRef.current) audioRef.current.src = "";
+      audioRef.current = null;
+    };
+  }, [src, maxVolume]);
+
+  return null;
+}
 
 export default function App() {
   const [activeBoard, setActiveBoard] = useState<string | null>(null);
@@ -189,7 +242,7 @@ export default function App() {
           Click to lock the mouse · WASD move · Space jump · F to toggle ladder climb · Press <b>E</b> near the golden button · ESC to close
         </div>
       )}
-
+      <BackgroundMusic src="audio/bg.mp3" maxVolume={0.6} />
       <Canvas camera={{ fov: 70, position: [0, 1.6, 6] }} onCreated={({ gl }) => gl.setClearColor(0x000000, 0)}>
         <ambientLight intensity={0.7} />
         <directionalLight position={[8, 20, 10]} intensity={1} />
