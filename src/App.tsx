@@ -371,7 +371,7 @@ function TitleScreen({
         padding: "2rem",
       }}
     >
-      <h1 style={{ fontSize: "2.6rem", color: "#4caf50", margin: 0 }}>
+      <h1 style={{ fontSize: "5.0rem", color: "#4caf50", margin: 0 }}>
         WORLD OF SAM
       </h1>
 
@@ -388,8 +388,7 @@ function TitleScreen({
       >
         <strong>WARNING:</strong> This world runs best with{" "}
         <span style={{ color: "#ffeb3b" }}>Hardware Acceleration</span>{" "}
-        enabled in your browser. If performance is choppy, enable it in your
-        browser settings or try <em>Lite Mode</em> (reduced effects).
+        enabled in your browser. Ensure that it is enabled by going to Browser Settings - System - Hardware Acceleration. If performance is choppy, swtich browsers or try <em>Lite Mode</em> (reduced effects).
       </div>
 
       <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
@@ -554,15 +553,7 @@ export default function App() {
           onDefs={setHouseDefs}
           lowSpec={lowSpec}
         />
-        {houseDefs.length > 0 && (
-          <HouseInteriors
-            enabled={!activeBoard}
-            houseDefs={houseDefs}
-            setPrompt={setPrompt}
-            setExhibit={setExhibit}
-            insideId={insideHouseId}
-          />
-        )}
+        
         <GroundedWhiteboards setActiveBoard={setActiveBoard} darkMode={darkMode} setPrompt={setPrompt}/>
         <ThickSkySign text="WELCOME TO MY WORLD" rgbActive={rgbBorder} darkMode={darkMode} />
 
@@ -582,6 +573,16 @@ export default function App() {
           }}
           setPrompt={setPrompt}
         />
+        {houseDefs.length > 0 && (
+          <HouseInteriors //test comment
+            enabled={!activeBoard}
+            houseDefs={houseDefs}
+            setPrompt={setPrompt}
+            setExhibit={setExhibit}
+            insideId={insideHouseId}
+            darkMode={darkMode}
+          />
+        )}
         {houseDefs.length > 0 && (
           <DoorPrompts //test comment
             enabled={!activeBoard}
@@ -1667,51 +1668,59 @@ function InteriorShell({
     </group>
   );
 }
-function DeskAndLamp({ x, z }: { x: number; z: number }) {
+// Replace your current DeskAndLamp with this version
+function DeskAndLamp({ x, z, darkMode }: { x: number; z: number; darkMode: boolean }) {
+  // shade colors
+  const shadeColor = darkMode ? "#fff7d6" : "#ffffff";
+  const shadeEmissive = darkMode ? "#ffd37a" : "#000000";
+  const shadeEmissiveIntensity = darkMode ? 0.9 : 0.0;
+  const lampLightIntensity = darkMode ? 1.2 : 0.4; // brighter at night
+
   return (
     <group position={[x, 0, z]}>
-      {/* ---- Desk: body + top ---- */}
-      {/* body (0.5 high) => top at 0.5 */}
+      {/* ---- Desk ---- */}
       <mesh position={[DESK.cx, 0.25, DESK.cz]}>
         <boxGeometry args={[DESK.w, 0.5, DESK.d]} />
         <meshBasicMaterial color="#654321" />
       </mesh>
-      {/* top slab (0.1 high), sits on body => center at 0.55 */}
       <mesh position={[DESK.cx, 0.55, DESK.cz]}>
         <boxGeometry args={[DESK.w, 0.1, DESK.d]} />
         <meshBasicMaterial color="#8B5A2B" />
       </mesh>
 
-      {/* ---- Lamp (grounded on desk top) ---- */}
-      {/* stand: 0.4 high => center 0.55 + 0.2 = 0.75 */}
+      {/* ---- Lamp (grounded on the desk) ---- */}
       <mesh position={[DESK.cx, 0.75, DESK.cz]}>
         <cylinderGeometry args={[0.05, 0.05, 0.4, 12]} />
-        <meshBasicMaterial color="gray" />
+        <meshBasicMaterial color="#808080" />
       </mesh>
-      {/* shade: 0.3 high; base sits at stand top (0.95) => center 1.10 */}
       <mesh position={[DESK.cx, 1.10, DESK.cz]}>
         <coneGeometry args={[0.25, 0.3, 16]} />
-        <meshStandardMaterial emissive="yellow" color="white" />
+        <meshStandardMaterial
+          color={shadeColor}
+          emissive={shadeEmissive}
+          emissiveIntensity={shadeEmissiveIntensity}
+        />
       </mesh>
-      <pointLight position={[DESK.cx, 1.10, DESK.cz]} intensity={0.6} distance={5} />
+      <pointLight
+        position={[DESK.cx, 1.10, DESK.cz]}
+        intensity={lampLightIntensity}
+        distance={5}
+        color={"#ffd27a"}
+      />
 
-      {/* ---- Bed along right wall ---- */}
-      {/* frame: 0.4 high => center 0.2 */}
+      {/* ---- Bed ---- */}
       <mesh position={[BED.cx, 0.2, BED.cz]}>
         <boxGeometry args={[BED.w, 0.4, BED.d]} />
         <meshBasicMaterial color="#5b3b2a" />
       </mesh>
-      {/* mattress: 0.2 high; sits on frame => center 0.5 */}
       <mesh position={[BED.cx, 0.5, BED.cz]}>
         <boxGeometry args={[BED.w * 0.98, 0.2, BED.d * 0.96]} />
         <meshBasicMaterial color="#dfe7f1" />
       </mesh>
-      {/* pillow */}
       <mesh position={[BED.cx + BED.w/2 - 0.35, 0.62, BED.cz]}>
         <boxGeometry args={[0.6, 0.12, 0.35]} />
         <meshBasicMaterial color="#ffffff" />
       </mesh>
-      {/* blanket */}
       <mesh position={[BED.cx - 0.2, 0.58, BED.cz]}>
         <boxGeometry args={[BED.w*0.7, 0.06, BED.d*0.95]} />
         <meshBasicMaterial color="#3b82f6" />
@@ -1720,20 +1729,20 @@ function DeskAndLamp({ x, z }: { x: number; z: number }) {
   );
 }
 
-
-
 function HouseInteriors({
   enabled,
   houseDefs,
   setPrompt,
   setExhibit,
   insideId,
+  darkMode,
 }: {
   enabled: boolean;
   houseDefs: { id: string; x: number; z: number }[];
   setPrompt: (s: string | null) => void;
   setExhibit: (v: { img: string; caption: string } | null) => void;
   insideId: string | null;
+  darkMode: boolean;
 }) {
   const frameTex = useMemo(() => makePlankTexture(), []);
   const baseW = 8, baseD = 8, baseH = 4.4;
@@ -1775,7 +1784,7 @@ function HouseInteriors({
               onTrigger={() => setExhibit({ img: asset(ex.img), caption: ex.caption })}
               setPrompt={setPrompt}
             />
-            {active && <DeskAndLamp x={h.x} z={h.z} />}
+            {active && <DeskAndLamp x={h.x} z={h.z} darkMode={darkMode}/>}
           </group>
         );
       })}
@@ -1793,17 +1802,25 @@ function InteriorPicture({
   const tex = useLoader(THREE.TextureLoader, asset(img));
   return (
     <group position={position}>
-      <mesh position={[0, 0, 0.02]}>
-        <boxGeometry args={[2.6, 1.9, 0.08]} />
+      {/* wooden frame */}
+      <mesh position={[0, 0, 0.03]}>
+        <boxGeometry args={[2.8, 2.0, 0.08]} />
         <meshBasicMaterial map={frameTex} />
       </mesh>
-      <mesh>
+      {/* inner white border */}
+      <mesh position={[0, 0, 0.035]}>
+        <planeGeometry args={[2.5, 1.8]} />
+        <meshBasicMaterial color="#f3f4f6" />
+      </mesh>
+      {/* actual image */}
+      <mesh position={[0, 0, 0.04]}>
         <planeGeometry args={[2.3, 1.6]} />
         <meshBasicMaterial map={tex} />
       </mesh>
     </group>
   );
 }
+
 
 /* ---------- Grounded Whiteboards (with poles) ---------- */
 function GroundedWhiteboards({
