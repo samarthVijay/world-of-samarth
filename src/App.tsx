@@ -170,58 +170,117 @@ const WHITEBOARD_CONFIG = [
     image: "https://via.placeholder.com/400x300/f87171/ffffff?text=Contact",
   },
 ];
-function BackgroundMusic({ src = "audio/bg.mp3", maxVolume = 0.4 }) {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+function BackgroundMusic({
+  lightSrc = "audio/bg.mp3",
+  darkSrc  = "audio/night.mp3",
+  darkMode,
+  maxVolume = 0.6,
+  fadeMs = 900,
+}: {
+  lightSrc?: string;
+  darkSrc?: string;
+  darkMode: boolean;
+  maxVolume?: number;
+  fadeMs?: number;
+}) {
+  const lightRef   = useRef<HTMLAudioElement | null>(null);
+  const darkRef    = useRef<HTMLAudioElement | null>(null);
   const startedRef = useRef(false);
+  const mutedRef   = useRef(false);
 
+  // create audio elements once
   useEffect(() => {
-    const url = `${import.meta.env.BASE_URL}${src.replace(/^\/+/, "")}`;
-    const audio = new Audio(url);
-    audio.loop = true;
-    audio.preload = "auto";
-    (audio as any).playsInline = true;
-    audio.volume = 0;
-    audioRef.current = audio;
-
-    const start = async () => {
-      if (startedRef.current || !audioRef.current) return;
-      try {
-        await audioRef.current.play();
-        startedRef.current = true;
-        let v = 0;
-        const id = window.setInterval(() => {
-          v += 0.05;
-          audioRef.current!.volume = Math.min(maxVolume, v);
-          if (audioRef.current!.volume >= maxVolume) window.clearInterval(id);
-        }, 100);
-      } catch {
-        startedRef.current = false;
-      }
-      if (!audioRef.current!.paused) {
-        window.removeEventListener("click", start, true);
-      }
+    const mk = (path: string) => {
+      const url = `${import.meta.env.BASE_URL}${path.replace(/^\/+/, "")}`;
+      const a = new Audio(url);
+      a.loop = true;
+      a.preload = "auto";
+      (a as any).playsInline = true;
+      a.volume = 0;
+      return a;
     };
-
-    window.addEventListener("click", start, true);
+    lightRef.current = mk(lightSrc);
+    darkRef.current  = mk(darkSrc);
 
     const onKey = (e: KeyboardEvent) => {
-      if (e.key.toLowerCase() === "m" && audioRef.current) {
-        audioRef.current.muted = !audioRef.current.muted;
+      if (e.key.toLowerCase() === "m") {
+        mutedRef.current = !mutedRef.current;
+        if (lightRef.current) lightRef.current.muted = mutedRef.current;
+        if (darkRef.current)  darkRef.current.muted  = mutedRef.current;
       }
     };
     window.addEventListener("keydown", onKey);
 
-    return () => {
-      window.removeEventListener("click", start, true);
-      window.removeEventListener("keydown", onKey);
-      audioRef.current?.pause();
-      if (audioRef.current) audioRef.current.src = "";
-      audioRef.current = null;
+    // start on first click (autoplay policy)
+    const start = async () => {
+      if (startedRef.current) return;
+      try {
+        // start both so switching is instant; keep inactive at 0 volume
+        await lightRef.current?.play();
+        await darkRef.current?.play();
+        startedRef.current = true;
+        // fade in the correct one initially
+        const active = darkMode ? darkRef.current : lightRef.current;
+        fadeTo(active!, maxVolume, fadeMs);
+      } catch {
+        startedRef.current = false;
+      }
+      if (startedRef.current) {
+        window.removeEventListener("click", start, true);
+      }
     };
-  }, [src, maxVolume]);
+    window.addEventListener("click", start, true);
+
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("click", start, true);
+      lightRef.current?.pause();
+      darkRef.current?.pause();
+      if (lightRef.current) lightRef.current.src = "";
+      if (darkRef.current)  darkRef.current.src  = "";
+      lightRef.current = null;
+      darkRef.current  = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lightSrc, darkSrc]);
+
+  // crossfade on theme change
+  useEffect(() => {
+    if (!startedRef.current) return;
+    const on  = darkMode ? darkRef.current  : lightRef.current;
+    const off = darkMode ? lightRef.current : darkRef.current;
+    if (!on || !off) return;
+
+    // ensure both are playing (in case user reloaded mid-gesture)
+    on.play().catch(()=>{});
+    off.play().catch(()=>{});
+
+    fadeTo(on,  maxVolume, fadeMs);
+    fadeTo(off, 0,         fadeMs);
+  }, [darkMode, maxVolume, fadeMs]);
 
   return null;
 }
+
+function fadeTo(a: HTMLAudioElement, target: number, ms: number) {
+  const steps = Math.max(1, Math.floor(ms / 50));
+  const start = a.volume;
+  const delta = target - start;
+  let i = 0;
+  const id = window.setInterval(() => {
+    i++;
+    const t = i / steps;
+    a.volume = clamp01(start + delta * easeInOutQuad(t));
+    if (i >= steps) {
+      a.volume = clamp01(target);
+      if (target === 0) a.currentTime = a.currentTime; // keep playing silently
+      window.clearInterval(id);
+    }
+  }, 50);
+}
+const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+const easeInOutQuad = (t: number) => (t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2)/2);
+
 
 export default function App() {
   const [prompt, setPrompt] = useState<string | null>(null);
@@ -268,7 +327,12 @@ export default function App() {
           Click to lock the mouse · WASD move · Space jump · F to toggle ladder climb · Press <b>E</b> near the golden button · ESC to close · Click M to mute/unmute
         </div>
       )}
-      <BackgroundMusic src="audio/bg.mp3" maxVolume={0.6} />
+      <BackgroundMusic
+        lightSrc="audio/bg.mp3"
+        darkSrc="audio/night.mp3"  
+        darkMode={darkMode}
+        maxVolume={0.6}
+      />
       {prompt && (
         <div
           style={{
