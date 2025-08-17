@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type JSX } from "react";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Canvas, useFrame, useThree, useLoader } from "@react-three/fiber";
 import * as THREE from "three";
 
 // ===== Theming + Layout =====
@@ -363,17 +363,8 @@ export default function App() {
         <World darkMode={darkMode} enabled={!activeBoard} setPrompt={setPrompt}/>
         {(globalThis as any).__HOUSE_DEFS__ && (
           <>
-            <DoorPrompts
-              enabled={!activeBoard}
-              houseDefs={(globalThis as any).__HOUSE_DEFS__}
-              setPrompt={setPrompt}
-              setInside={setInsideHouseId}
-              insideId={insideHouseId}
-            />
-
             <HouseInteriors
               enabled={!activeBoard}
-              darkMode={darkMode}
               houseDefs={(globalThis as any).__HOUSE_DEFS__}
               setPrompt={setPrompt}
               setExhibit={setExhibit}
@@ -985,13 +976,27 @@ function MovementControls({
 /* ---------- World ---------- */
 function World({ darkMode,enabled,setPrompt }: { darkMode: boolean;enabled:boolean;setPrompt: (s: string | null) => void; }) {
   const groundTex = useMemo(() => makeVoxelGroundTexture(darkMode), [darkMode]);
-  const houseDefs = [
-    { id: "house-0", x: -16, z: -12 },
-    { id: "house-1", x:  16, z: -10 },
-    { id: "house-2", x: -14, z:  14 },
-    { id: "house-3", x:  14, z:  14 },
-  ];
-  ;(globalThis as any).__HOUSE_DEFS__ = houseDefs;
+  const houseDefs = useMemo(() => {
+    const raw = [
+      { id: "house-0", x: -16, z: -12 },
+      { id: "house-1", x:  16, z: -10 },
+      { id: "house-2", x: -14, z:  14 },
+      { id: "house-3", x:  14, z:  14 },
+    ];
+    const baseW=8, baseH=4.4, baseD=8, roofT=0.4, ld=0.5;
+
+    return raw.map(h => {
+      const doorWorld     = new THREE.Vector3(h.x, 0,   h.z + baseD/2 + 0.1);
+      const insideSpawn   = new THREE.Vector3(h.x, 1.6, h.z + baseD/2 - 2.0);
+      const interiorLight = new THREE.Vector3(h.x, baseH*0.6, h.z);
+      // also precompute ladder pos if useful elsewhere
+      const ladderX = h.x + baseW*0.35;
+      const ladderZ = h.z + baseD/2 + ld/2 + 0.02;
+
+      return {...h, baseW, baseH, baseD, roofT, ld, doorWorld, insideSpawn, interiorLight, ladderX, ladderZ};
+    });
+  }, []);
+
   useEffect(() => () => { groundTex.dispose?.(); }, [groundTex]);
   useEffect(() => {
     const blockers: AABB[] = [];
@@ -1012,35 +1017,22 @@ function World({ darkMode,enabled,setPrompt }: { darkMode: boolean;enabled:boole
     });
   
     // --- Houses: walls = blockers, roof slab = walkable ---
-    const baseW=8, baseH=4.4, baseD=8;
-    const roofT = 0.4, over=0.6, inset=0.1, ld=0.5;
+    houseDefs.forEach(h => {
+      const { x, z, id, baseW, baseH, baseD, roofT, ld, ladderX, ladderZ } = h;
 
-    houseDefs.forEach((h) => {
-      const { x, z, id } = h;
-
-      // tag the big shell so we can ignore it when "inside"
-      blockers.push({
-        min:[x-baseW/2, 0, z-baseD/2],
-        max:[x+baseW/2, baseH, z+baseD/2],
-        tag: id,                               // <— tag!
-      });
+      // tag the shell
+      blockers.push({ min:[x-baseW/2, 0, z-baseD/2], max:[x+baseW/2, baseH, z+baseD/2], tag: id });
 
       // thin walkable roof
+      const over=0.6, inset=0.1;
       walk.push({
-        min: [x-(baseW+over)/2 + inset, baseH,               z-(baseD+over)/2 + inset],
-        max: [x+(baseW+over)/2 - inset, baseH + 0.12,        z+(baseD+over)/2 - inset],
+        min: [x-(baseW+over)/2 + inset, baseH,        z-(baseD+over)/2 + inset],
+        max: [x+(baseW+over)/2 - inset, baseH + 0.12, z+(baseD+over)/2 - inset],
       });
 
       // ladder volume
-      const lx = x + baseW*0.35;
-      const lz = z + baseD/2 + ld/2 + 0.02;
       const lh = baseH + roofT;
-      climb.push({ min:[lx-0.8/2, 0, lz-ld/2], max:[lx+0.8/2, lh, lz+ld/2] });
-
-      // store handy points on the defs so we can use them elsewhere:
-      (h as any).doorWorld = new THREE.Vector3(x, 0, z + baseD/2 + 0.1);
-      (h as any).insideSpawn = new THREE.Vector3(x, 1.6, z + baseD/2 - 2.0);
-      (h as any).interiorLight = new THREE.Vector3(x, baseH*0.6, z);
+      climb.push({ min:[ladderX-0.8/2, 0, ladderZ-ld/2], max:[ladderX+0.8/2, lh, ladderZ+ld/2] });
     });
 
   
@@ -1379,53 +1371,76 @@ function HouseInteriors({
   insideId,
 }: {
   enabled: boolean;
-  darkMode: boolean;
-  houseDefs: {id:string; x:number; z:number}[];
+  houseDefs: { id: string; x: number; z: number }[];
   setPrompt: (s: string | null) => void;
-  setExhibit: (v: {img: string; caption: string} | null) => void;
+  setExhibit: (v: { img: string; caption: string } | null) => void;
   insideId: string | null;
 }) {
-  // simple example: one exhibit per house, hung on the back wall
+  // tiny child that can legitimately use a hook
+  function InteriorPicture({
+    img,
+    frameTex,
+    position,
+  }: {
+    img: string;
+    frameTex: THREE.Texture;
+    position: [number, number, number];
+  }) {
+    const tex = useLoader(THREE.TextureLoader, asset(img));
+    return (
+      <group position={position}>
+        {/* wood frame */}
+        <mesh position={[0, 0, 0.02]}>
+          <boxGeometry args={[2.6, 1.9, 0.08]} />
+          <meshBasicMaterial map={frameTex} />
+        </mesh>
+        {/* image */}
+        <mesh>
+          <planeGeometry args={[2.3, 1.6]} />
+          <meshBasicMaterial map={tex} />
+        </mesh>
+      </group>
+    );
+  }
+
+  // one exhibit per house (customize as you like)
   const exhibits = [
-    { id: "house-0", img: "images/imageme1.jpeg", caption: "Me, IRL." },
-    { id: "house-1", img: "images/imagejetbot1.jpeg", caption: "Jetbot build." },
-    { id: "house-2", img: "images/imagelidar1.jpeg", caption: "LIDAR project." },
-    { id: "house-3", img: "images/imagesnake1.jpg", caption: "C++ Snake." },
+    { id: "house-0", img: "images/imageme1.jpeg",     caption: "Me, IRL." },
+    { id: "house-1", img: "images/imagejetbot1.jpeg",  caption: "Jetbot build." },
+    { id: "house-2", img: "images/imagelidar1.jpeg",   caption: "LIDAR project." },
+    { id: "house-3", img: "images/imagesnake1.jpg",    caption: "C++ Snake." },
   ];
-  const frameTex = useMemo(()=>makePlankTexture(),[]);
+
+  const frameTex = useMemo(() => makePlankTexture(), []);
 
   return (
     <group>
       {houseDefs.map((h, i) => {
         const ex = exhibits[i % exhibits.length];
-        // place on back wall (−Z), a little above eye level
+
+        // back wall position (slightly above eye level)
         const pos = new THREE.Vector3(h.x, 2.2, h.z - 3.6);
-        const promptPos = pos.clone(); promptPos.z += 0.8;
+        const promptPos = pos.clone(); 
+        promptPos.z += 0.8;
 
         return (
           <group key={`int-${h.id}`}>
-            {/* the framed picture */}
-            <group position={pos.toArray()}>
-              {/* wood frame */}
-              <mesh position={[0,0,0.02]}>
-                <boxGeometry args={[2.6, 1.9, 0.08]} />
-                <meshBasicMaterial map={frameTex} />
-              </mesh>
-              {/* image */}
-              <mesh>
-                <planeGeometry args={[2.3, 1.6]} />
-                <meshBasicMaterial map={new THREE.TextureLoader().load(asset(ex.img))} />
-              </mesh>
-            </group>
+            <InteriorPicture
+              img={ex.img}
+              frameTex={frameTex}
+              position={pos.toArray() as [number, number, number]}
+            />
 
-            {/* "Press E to view" prompt/trigger — only useful if you're inside this house */}
+            {/* "Press E to view" prompt/trigger — only when you're inside THIS house */}
             <InteractAtPoint
               target={promptPos}
               enabled={enabled && insideId === h.id}
               keyName="e"
               range={2.0}
               label={"Press E to view"}
-              onTrigger={() => setExhibit({ img: asset(ex.img), caption: ex.caption })}
+              onTrigger={() =>
+                setExhibit({ img: asset(ex.img), caption: ex.caption })
+              }
               setPrompt={setPrompt}
             />
           </group>
@@ -1434,6 +1449,7 @@ function HouseInteriors({
     </group>
   );
 }
+
 
 /* ---------- Grounded Whiteboards (with poles) ---------- */
 function GroundedWhiteboards({
