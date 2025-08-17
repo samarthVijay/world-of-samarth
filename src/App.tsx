@@ -1280,7 +1280,7 @@ function makeVoxelGroundTexture(darkMode = false){
   c.width=size; c.height=size; 
   const ctx=c.getContext("2d")!;
 
-  const base  = darkMode ? "#152d1a" : "#4caf50";
+  const base = darkMode ? "#1a3a24" : "#4caf50";
   const speckMin = darkMode ? "rgba(5,30,15," : "rgba(20,100,40,";
   
   ctx.fillStyle=base; 
