@@ -472,7 +472,7 @@ function MovementControls({
 
   // Ground probe ONLY from WALKABLES (thin, slightly inset caps for tops/roofs)
   function groundAt(x: number, z: number) {
-    const walkList = (globalThis as any).GLOBAL_WALK_SURFACES as AABB[] || [];
+    const walkList = GLOBAL_WALK_SURFACES
     const probe = Math.max(0, radius * PROBE_FACTOR);
     let g = 0; // world base
 
