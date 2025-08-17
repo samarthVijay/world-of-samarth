@@ -8,6 +8,11 @@ const TITLE_ALT = 10;   // floating sign below clouds, in front of spawn
 const BOARD_ALT = 2.8;  // grounded boards' center height
 const ARENA_HALF = 26;   // half-width of playable area (for clamping + walls)
 // Resolves to "/world-of-samarth/<path>" in production, "/" in dev
+// --- movement tolerances (prevents edge fall-through) ---
+const EDGE_PAD = 0.12;         // how much to "inflate" walk AABBs in X/Z
+const PROBE_FACTOR = 0.55;     // enlarges the feet probe (radius * factor)
+const GROUND_SNAP = 0.25;      // snap-to-ground if this close while falling
+const MAX_STEP = 0.45;         // optional: allow tiny step-down without falling
 const asset = (p: string) => `${import.meta.env.BASE_URL}${p.replace(/^\/+/, '')}`;
 
 // --- Simple collision system (AABBs) ---
@@ -18,8 +23,8 @@ let GLOBAL_BLOCKERS: AABB[] = [];
 function setBlockers(aabbs: AABB[]) { GLOBAL_BLOCKERS = aabbs; }
 
 // Flat tops you can stand on (box/roof tops only)
-let GLOBAL_WALKABLES: AABB[] = [];
-function setWalkSurfaces(aabbs: AABB[]) { GLOBAL_WALKABLES = aabbs; }
+let GLOBAL_WALK_SURFACES: AABB[] = [];
+function setWalkSurfaces(aabbs: AABB[]) { GLOBAL_WALK_SURFACES = aabbs; }
 
 // Ladders (unchanged)
 let GLOBAL_CLIMB_VOLUMES: AABB[] = [];
@@ -467,13 +472,19 @@ function MovementControls({
 
   // Ground probe ONLY from WALKABLES (thin, slightly inset caps for tops/roofs)
   function groundAt(x: number, z: number) {
-    const probe = Math.max(0, radius * 0.5); // smaller than collision radius
-    let g = 0; // world ground
-    for (const a of GLOBAL_WALKABLES) {
-      if (
-        x >= a.min[0] + probe && x <= a.max[0] - probe &&
-        z >= a.min[2] + probe && z <= a.max[2] - probe
-      ) {
+    const walkList = (globalThis as any).GLOBAL_WALK_SURFACES as AABB[] || [];
+    const probe = Math.max(0, radius * PROBE_FACTOR);
+    let g = 0; // world base
+
+    for (const a of walkList) {
+      // Inflate in X/Z to close seams
+      const minX = a.min[0] - EDGE_PAD - probe;
+      const maxX = a.max[0] + EDGE_PAD + probe;
+      const minZ = a.min[2] - EDGE_PAD - probe;
+      const maxZ = a.max[2] + EDGE_PAD + probe;
+
+      if (x >= minX && x <= maxX && z >= minZ && z <= maxZ) {
+        // top of the slab
         g = Math.max(g, a.max[1]);
       }
     }
@@ -540,23 +551,41 @@ function MovementControls({
     } else {
       const gY = groundAt(camera.position.x, camera.position.z);
       const minY = gY + baseEye;
-
+    
       // gravity
       vY.current -= gravity * dt;
       camera.position.y += vY.current * dt;
-
-      // grounded?
+    
+      // --- sticky landing / edge-proof snap ---
+      if (vY.current <= 0) { // only when descending or resting
+        const dist = camera.position.y - minY;
+    
+        // Snap cleanly if we're close enough to the top surface
+        if (dist <= GROUND_SNAP) {
+          camera.position.y = minY;
+          vY.current = 0;
+        } else {
+          // Optional small step-down allowance (prevents "hovering" at ledge)
+          if (dist > 0 && dist < MAX_STEP) {
+            camera.position.y = minY;
+            vY.current = 0;
+          }
+        }
+      }
+    
+      // grounded check AFTER potential snap
       const onGround = Math.abs(camera.position.y - minY) < 0.005 || camera.position.y < minY;
       if (onGround) {
         camera.position.y = minY;
         vY.current = 0;
       }
-
-      // jump (Space) — only if grounded or just landed
+    
+      // jump (Space) — only if grounded
       if ((isDown(" ") || isDown("Space")) && onGround) {
-        vY.current = jumpSpeed * (sprintMul > 1 ? 1.05 : 1); // tiny boost if sprinting
+        vY.current = jumpSpeed * (sprintMul > 1 ? 1.05 : 1);
       }
     }
+    
 
     // Clamp inside arena
     const H = ARENA_HALF;
