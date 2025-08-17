@@ -130,7 +130,7 @@ const WHITEBOARD_CONFIG = [
         title: "Jetbot Autonomous Vehicle",
         url: "https://github.com/samarthVijay/Jetbot-Autonomous-Parking-and-Self-Driving",
         body:
-          "<p><b>Why I built it:</b> I wanted a tiny car that could make decisions on its own without phoning home. Edge compute or bust.</p>\
+          "<p><b>Why I built it:</b> I was gifted the Jetson Nano Developer Kit, and told to make good use of it. Naturally, I started researching projects I could do with it and what it was capable of. Soon I found out that I was able to create my very own RC, but not just any RC. One that can move and think on its own, and it was my perfect gateway into artifical intelligence and machine learning in embedded systems.</p>\
            <p><b>Perception:</b> Collected hallway/outdoor footage with a CSI camera and built a training set (class balance + augmentations: random crop/flip/brightness). Trained CNNs in PyTorch/TensorFlow; exported to ONNX and optimized with TensorRT/torch2trt on a <b>Jetson Nano</b>. Post‑opt inference runs in the low‑tens of ms on 320×240 frames, which leaves enough CPU for control.</p>\
            <p><b>Control loop:</b> Capture → normalize → model → parse detections → <i>steering policy</i> (simple proportional navigation + collision gating). PWM motor driver for throttle/steer; soft‑start and clamped acceleration to keep the chassis stable. Implemented a parking routine that looks for a rectangular free‑space window and centers the robot between edges before braking.</p>\
            <p><b>Reliability:</b> watchdog resets on camera drops, bounded queues to avoid latency creep, and telemetry prints over UART for quick serial debugging.</p>"
@@ -1393,6 +1393,7 @@ function House({
   const baseW=8, baseH=4.4, baseD=8;
   const centerY = baseH/2;
   const ridgeY = baseH;
+  const roofT = 0.36;
 
   return (
     <group position={position}>
@@ -1415,8 +1416,8 @@ function House({
       </mesh>
 
       {/* flat roof slab for walkable top */}
-      <mesh position={[0, ridgeY + 0.22, 0]}>
-        <boxGeometry args={[baseW+0.6, 0.4, baseD+0.6]} />
+      <mesh position={[0, ridgeY + roofT / 2, 0]}>
+        <boxGeometry args={[baseW+0.6, roofT, baseD+0.6]} />
         <meshBasicMaterial map={plank} />
       </mesh>
 
@@ -1667,7 +1668,7 @@ function InteriorShell({
       </mesh>
 
       {/* CEILING (optional) */}
-      <mesh position={[x, baseH - 0.03, z]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh position={[x, baseH - 0.02, z]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[baseW - 2 * inset, baseD - 2 * inset]} />
         <meshBasicMaterial color={0x505050} />
       </mesh>
