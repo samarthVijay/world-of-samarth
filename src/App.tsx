@@ -1397,13 +1397,12 @@ function House({
   return (
     <group position={position}>
       {/* base */}
-      <mesh position={[0,centerY,0]}>
-        <boxGeometry args={[baseW,baseH,baseD]} />
-        <meshBasicMaterial map={brick} />
-      </mesh>
-      <mesh position={[0,centerY,0]}>
-        <boxGeometry args={[baseW,baseH,baseD]} />
-        <meshBasicMaterial map={brick} side={insideActive ? THREE.BackSide : THREE.FrontSide} />
+      <mesh position={[0, centerY, 0]}>
+        <boxGeometry args={[baseW, baseH, baseD]} />
+        <meshBasicMaterial
+          map={brick}
+          side={insideActive ? THREE.DoubleSide : THREE.FrontSide}
+        />
       </mesh>
       {/* door + window (window glows at night) */}
       <mesh position={[0,1.2,baseD/2+0.01]}>
