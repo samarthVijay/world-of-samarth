@@ -792,7 +792,8 @@ function MovementControls({
 
 /* ---------- World ---------- */
 function World({ darkMode }: { darkMode: boolean }) {
-  const groundTex = useMemo(() => makeVoxelGroundTexture(darkMode), []);
+  const groundTex = useMemo(() => makeVoxelGroundTexture(darkMode), [darkMode]);
+  useEffect(() => () => { groundTex.dispose?.(); }, [groundTex]);
   useEffect(() => {
     const blockers: AABB[] = [];
     const walk: AABB[] = [];
@@ -1075,7 +1076,7 @@ function GroundedBoard({ position, rotation, config, darkMode, onClick}: { posit
       {/* clickable front banner */}
       <mesh position={[0,0,D/2+0.01]} onClick={(e)=>{e.stopPropagation();onClick();}}>
         <planeGeometry args={[W*0.97, H*0.95]} />
-        <meshBasicMaterial map={banner} />
+        <meshBasicMaterial key={darkMode ? "dark" : "light"} map={banner} />
       </mesh>
       {/* large invisible hit area */}
       <mesh position={[0,0,D/2+0.2]} onClick={(e)=>{e.stopPropagation();onClick();}}>
@@ -1176,7 +1177,7 @@ function ThickSkySign({ text, rgbActive, darkMode }: { text: string; rgbActive: 
     }
 
      // text
-    ctx.fillStyle = darkMode ? "#e5e7eb" : "#ffffff";
+    ctx.fillStyle = darkMode ? "#000000" : "#ffffff";
     ctx.font = "900 150px 'Press Start 2P', monospace";
     ctx.textAlign="center"; ctx.textBaseline="middle";
     ctx.fillText(text.toUpperCase(), canvas.width/2, canvas.height/2+10);
@@ -1216,10 +1217,24 @@ function ThickSkySign({ text, rgbActive, darkMode }: { text: string; rgbActive: 
 
   return (
     <group ref={groupRef} position={[0,TITLE_ALT,0]}>
-      <mesh><boxGeometry args={[12,4.5,0.7]} /><meshBasicMaterial map={makePlankTexture()} /></mesh>
-      <mesh position={[0,0,0.36]}><planeGeometry args={[11.8,4.3]} /><meshBasicMaterial map={texRef.current!} /></mesh>
-      <mesh position={[0,0,-0.36]} rotation={[0,Math.PI,0]}><planeGeometry args={[11.8,4.3]} /><meshBasicMaterial map={texRef.current!} /></mesh>
-    </group>
+      <mesh>
+        <boxGeometry args={[12,4.5,0.7]} />
+        <meshBasicMaterial map={makePlankTexture()} />
+      </mesh>
+
+      {/* front face */}
+      <mesh position={[0,0,0.36]}>
+        <planeGeometry args={[11.8,4.3]} />
+        <meshBasicMaterial key={darkMode ? "dark" : "light"} map={texRef.current!} />
+      </mesh>
+
+      {/* back face */}
+      <mesh position={[0,0,-0.36]} rotation={[0,Math.PI,0]}>
+        <planeGeometry args={[11.8,4.3]} />
+        <meshBasicMaterial key={darkMode ? "dark" : "light"} map={texRef.current!} />
+      </mesh>
+  </group>
+
   );
 }
 
@@ -1249,7 +1264,7 @@ function makeCenterBannerTextureThemed(text: string, darkMode: boolean){
   ctx.strokeRect(0,0,canvas.width,canvas.height);
 
   // text
-  ctx.fillStyle = darkMode ? "#e5e7eb" : "#ffffff";
+  ctx.fillStyle = darkMode ? "#000000" : "#ffffff";
   ctx.font = "900 200px 'Press Start 2P', monospace";
   ctx.textAlign = "center"; ctx.textBaseline = "middle";
   ctx.fillText(text.toUpperCase(), canvas.width/2, canvas.height/2+10);
@@ -1265,8 +1280,8 @@ function makeVoxelGroundTexture(darkMode = false){
   c.width=size; c.height=size; 
   const ctx=c.getContext("2d")!;
 
-  const base = darkMode ? "#1d3b22" : "#4caf50";
-  const speckMin = darkMode ? "rgba(10,40,20," : "rgba(20,100,40,";
+  const base  = darkMode ? "#152d1a" : "#4caf50";
+  const speckMin = darkMode ? "rgba(5,30,15," : "rgba(20,100,40,";
   
   ctx.fillStyle=base; 
   ctx.fillRect(0,0,size,size);
