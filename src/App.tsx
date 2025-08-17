@@ -395,64 +395,92 @@ function MouseLookControls({ enabled, initialYaw = 0, initialPitch = -0.1 }: { e
   return null;
 }
 
-/* ---------- Movement (WASD + JUMP + Ladder toggle F) ---------- */
-function MovementControls({ enabled, speed = 3.5 }: { enabled: boolean; speed?: number }) {
+/* ---------- Movement (WASD + JUMP + Ladder toggle F + Sprint) ---------- */
+function MovementControls({
+  enabled,
+  speed = 3.5,
+  sprint = 1.9, // hold Shift to sprint
+}: { enabled: boolean; speed?: number; sprint?: number }) {
   const { camera } = useThree();
   const keys = useRef<{ [k: string]: boolean }>({});
   const velocity = useRef(new THREE.Vector3());
-  const vY = useRef(0); const last = useRef(performance.now());
-  const baseEye = 1.6; const gravity = 20; const jumpSpeed = 7.5; const climbSpeed = 3.0;
+  const vY = useRef(0);
+  const last = useRef(performance.now());
+
+  const baseEye = 1.6;   // camera eye above “feet”
+  const gravity = 20;
+  const jumpSpeed = 7.5;
+  const climbSpeed = 3.0;
+  const radius = 0.4;    // player radius
 
   const climbing = useRef(false);
   const climbVolRef = useRef<AABB | null>(null);
 
+  // Keys + ladder toggle (F)
   useEffect(() => {
     function down(e: KeyboardEvent) {
       const k = e.key.toLowerCase();
-      keys.current[k] = true; keys.current[e.code] = true;
-      if (k === 'f') {
-        // toggle climbing if we're in a ladder volume
-        if (climbVolRef.current) {
-          climbing.current = !climbing.current;
-          // snap X/Z inside ladder so you don't slip
-          const a = climbVolRef.current; const cx = (a.min[0]+a.max[0])/2; const cz = (a.min[2]+a.max[2])/2;
-          camera.position.x = cx; camera.position.z = cz;
-        }
+      keys.current[k] = true;
+      keys.current[e.code] = true;
+
+      if (k === "f" && climbVolRef.current) {
+        // toggle climbing if inside ladder volume
+        climbing.current = !climbing.current;
+        const a = climbVolRef.current;
+        const cx = (a.min[0] + a.max[0]) / 2;
+        const cz = (a.min[2] + a.max[2]) / 2;
+        camera.position.x = cx;
+        camera.position.z = cz;
       }
     }
-    function up(e: KeyboardEvent) { keys.current[e.key.toLowerCase()] = false; keys.current[e.code] = false; }
-    window.addEventListener("keydown", down); window.addEventListener("keyup", up);
-    return () => { window.removeEventListener("keydown", down); window.removeEventListener("keyup", up); };
+    function up(e: KeyboardEvent) {
+      keys.current[e.key.toLowerCase()] = false;
+      keys.current[e.code] = false;
+    }
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+    };
   }, [camera]);
 
-  function collidesXYAt(x:number, z:number, height:number){
-    const radius = 0.4;
-    const baseEye = 1.6;
-    const yMin = height + 0.02;
-    const yMax = height + baseEye - 0.02;
-  
+  const isDown = (name: string) =>
+    !!(keys.current[name] || keys.current[name.toLowerCase()]);
+
+  // Horizontal collision against BLOCKERS using the player's current feet..head span
+  function collidesXYAt(x: number, z: number) {
+    const yMin = (camera.position.y - baseEye) + 0.02; // feet
+    const yMax = camera.position.y - 0.02;             // head
     for (const a of GLOBAL_BLOCKERS) {
-      if (x >= a.min[0]-radius && x <= a.max[0]+radius &&
-          z >= a.min[2]-radius && z <= a.max[2]+radius) {
-        if (yMax > a.min[1] && yMin < a.max[1]) return true;
+      if (
+        x >= a.min[0] - radius && x <= a.max[0] + radius &&
+        z >= a.min[2] - radius && z <= a.max[2] + radius
+      ) {
+        if (yMax > a.min[1] + 1e-3 && yMin < a.max[1] - 1e-3) {
+          return true; // vertical spans overlap -> blocked
+        }
       }
     }
     return false;
   }
-  
-  function groundAt(x:number, z:number){
-    // Only walkable tops contribute to “ground”. Blockers (trees/walls) don’t.
+
+  // Ground probe ONLY from WALKABLES (thin, slightly inset caps for tops/roofs)
+  function groundAt(x: number, z: number) {
+    const probe = Math.max(0, radius * 0.4); // smaller than collision radius
     let g = 0; // world ground
     for (const a of GLOBAL_WALKABLES) {
-      if (x >= a.min[0] && x <= a.max[0] &&
-          z >= a.min[2] && z <= a.max[2]) {
+      if (
+        x >= a.min[0] + probe && x <= a.max[0] - probe &&
+        z >= a.min[2] + probe && z <= a.max[2] - probe
+      ) {
         g = Math.max(g, a.max[1]);
       }
     }
     return g;
   }
-  
-  function inClimbVol(x:number, z:number): AABB | null {
+
+  function inClimbVol(x: number, z: number): AABB | null {
     for (const a of GLOBAL_CLIMB_VOLUMES) {
       if (x >= a.min[0] && x <= a.max[0] && z >= a.min[2] && z <= a.max[2]) return a;
     }
@@ -460,67 +488,85 @@ function MovementControls({ enabled, speed = 3.5 }: { enabled: boolean; speed?: 
   }
 
   useFrame(() => {
-    const now = performance.now(); const dt = (now - last.current) / 1000; last.current = now;
+    const now = performance.now();
+    const dt = (now - last.current) / 1000;
+    last.current = now;
     if (!enabled) return;
 
-    // desired horizontal move
-    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion); forward.y = 0; forward.normalize();
+    // Desired horizontal move (+ sprint)
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+    forward.y = 0; forward.normalize();
     const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
-    let move = new THREE.Vector3();
-    if (keys.current["w"]) move.add(forward);
-    if (keys.current["s"]) move.sub(forward);
-    if (keys.current["a"]) move.sub(right);
-    if (keys.current["d"]) move.add(right);
-    if (move.lengthSq() > 0) move.normalize().multiplyScalar(speed);
-    velocity.current.lerp(move, 0.2);
 
-    // choose height based on destination ground — lets you WASD on top of boxes/roofs
+    const sprintMul = (isDown("ShiftLeft") || isDown("ShiftRight") || isDown("shift")) ? sprint : 1;
+
+    let wish = new THREE.Vector3();
+    if (isDown("w")) wish.add(forward);
+    if (isDown("s")) wish.sub(forward);
+    if (isDown("a")) wish.sub(right);
+    if (isDown("d")) wish.add(right);
+    if (wish.lengthSq() > 0) wish.normalize().multiplyScalar(speed * sprintMul);
+
+    // Smooth accel
+    velocity.current.lerp(wish, 0.18);
+
+    // Try XY move with per-axis resolution
     const next = camera.position.clone().addScaledVector(velocity.current, dt);
-    const gBoth = groundAt(next.x, next.z);
-    const gX = groundAt(next.x, camera.position.z);
-    const gZ = groundAt(camera.position.x, next.z);
-
     let nx = camera.position.x, nz = camera.position.z;
-    if (!collidesXYAt(next.x, next.z, gBoth)) { nx = next.x; nz = next.z; }
-    else {
-      if (!collidesXYAt(next.x, camera.position.z, gX)) nx = next.x;
-      if (!collidesXYAt(camera.position.x, next.z, gZ)) nz = next.z;
-    }
-    camera.position.x = nx; camera.position.z = nz;
 
-    // ladder state (prompt area)
+    if (!collidesXYAt(next.x, next.z)) {
+      nx = next.x; nz = next.z;
+    } else {
+      if (!collidesXYAt(next.x, camera.position.z)) nx = next.x;
+      if (!collidesXYAt(camera.position.x, next.z)) nz = next.z;
+    }
+    camera.position.x = nx;
+    camera.position.z = nz;
+
+    // Ladder state
     const hereClimb = inClimbVol(camera.position.x, camera.position.z);
     climbVolRef.current = hereClimb;
-    if (!hereClimb) climbing.current = false; // auto-exit if you leave the volume
+    if (!hereClimb) climbing.current = false;
 
-    // vertical: climbing vs gravity
+    // Vertical motion
     if (climbing.current && hereClimb) {
       let y = camera.position.y;
-      if (keys.current["w"]) y += climbSpeed * dt;
-      if (keys.current["s"]) y -= climbSpeed * dt;
+      if (isDown("w")) y += climbSpeed * dt;
+      if (isDown("s")) y -= climbSpeed * dt;
       const minY = hereClimb.min[1] + baseEye;
-      const maxY = hereClimb.max[1] + baseEye + 0.2; // allow a bit above roof
+      const maxY = hereClimb.max[1] + baseEye + 0.2;
       camera.position.y = Math.max(minY, Math.min(maxY, y));
       vY.current = 0;
     } else {
       const gY = groundAt(camera.position.x, camera.position.z);
       const minY = gY + baseEye;
+
+      // gravity
       vY.current -= gravity * dt;
       camera.position.y += vY.current * dt;
-      if (camera.position.y <= minY) {
+
+      // grounded?
+      const onGround = Math.abs(camera.position.y - minY) < 0.005 || camera.position.y < minY;
+      if (onGround) {
         camera.position.y = minY;
         vY.current = 0;
-        if (keys.current["Space"] || keys.current[" "]) vY.current = jumpSpeed;
+      }
+
+      // jump (Space) — only if grounded or just landed
+      if ((isDown(" ") || isDown("Space")) && onGround) {
+        vY.current = jumpSpeed * (sprintMul > 1 ? 1.05 : 1); // tiny boost if sprinting
       }
     }
 
-    // clamp inside arena
+    // Clamp inside arena
     const H = ARENA_HALF;
     camera.position.x = Math.max(-H, Math.min(H, camera.position.x));
     camera.position.z = Math.max(-H, Math.min(H, camera.position.z));
   });
+
   return null;
 }
+
 
 /* ---------- World ---------- */
 function World() {
