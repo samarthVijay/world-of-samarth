@@ -402,7 +402,7 @@ export default function App() {
           }}
           setPrompt={setPrompt}
         />
-        {(globalThis as any).__HOUSE_DEFS__ && (
+        {houseDefs.length > 0 && (
           <DoorPrompts
             enabled={!activeBoard}
             houseDefs={(globalThis as any).__HOUSE_DEFS__}
