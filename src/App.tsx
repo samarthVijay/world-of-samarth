@@ -19,7 +19,7 @@ const ROOF_GRACE_MS = 1200;   // how long after ladder toggle you’re allowed t
 const asset = (p: string) => `${import.meta.env.BASE_URL}${p.replace(/^\/+/, '')}`;
 
 // --- Simple collision system (AABBs) ---
-type AABB = { min: [number, number, number]; max: [number, number, number] };
+type AABB = { min: [number, number, number]; max: [number, number, number]; tag?: string;};
 
 // Solids you cannot pass through (trunks, walls, box sides, arena walls)
 let GLOBAL_BLOCKERS: AABB[] = [];
@@ -288,6 +288,8 @@ export default function App() {
   const [rgbBorder, setRgbBorder] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const topBtnPos = useMemo(()=>getTopButtonPos(),[]);
+  const [insideHouseId, setInsideHouseId] = useState<string | null>(null);
+  const [exhibit, setExhibit] = useState<{img: string; caption: string} | null>(null);
   const skyGradient = darkMode
   ? "linear-gradient(#0b1220, #1a237e)"   // night: deep navy → indigo
   : "linear-gradient(#87ceeb, #1e90ff)"; // day: light blue → sky blue
@@ -359,11 +361,31 @@ export default function App() {
         <directionalLight position={[8, 20, 10]} intensity={1} />
 
         <World darkMode={darkMode} enabled={!activeBoard} setPrompt={setPrompt}/>
+        {(globalThis as any).__HOUSE_DEFS__ && (
+          <>
+            <DoorPrompts
+              enabled={!activeBoard}
+              houseDefs={(globalThis as any).__HOUSE_DEFS__}
+              setPrompt={setPrompt}
+              setInside={setInsideHouseId}
+              insideId={insideHouseId}
+            />
+
+            <HouseInteriors
+              enabled={!activeBoard}
+              darkMode={darkMode}
+              houseDefs={(globalThis as any).__HOUSE_DEFS__}
+              setPrompt={setPrompt}
+              setExhibit={setExhibit}
+              insideId={insideHouseId}
+            />
+          </>
+        )}
         <GroundedWhiteboards setActiveBoard={setActiveBoard} darkMode={darkMode} setPrompt={setPrompt}/>
         <ThickSkySign text="WELCOME TO MY WORLD" rgbActive={rgbBorder} darkMode={darkMode} />
 
         <MouseLookControls enabled={!activeBoard} initialYaw={0} initialPitch={-0.1} />
-        <MovementControls enabled={!activeBoard} speed={3.5} />
+        <MovementControls enabled={!activeBoard} speed={3.5} insideHouseId={insideHouseId}/>
         <Crosshair enabled={!activeBoard} />
         <InteractAtPoint
           target={topBtnPos}
@@ -378,9 +400,25 @@ export default function App() {
           }}
           setPrompt={setPrompt}
         />
+        {(globalThis as any).__HOUSE_DEFS__ && (
+          <DoorPrompts
+            enabled={!activeBoard}
+            houseDefs={(globalThis as any).__HOUSE_DEFS__}
+            setPrompt={setPrompt}
+            setInside={setInsideHouseId}
+            insideId={insideHouseId}
+          />
+        )}
         <LadderPrompts enabled={!activeBoard} setPrompt={setPrompt} />
       </Canvas>
-
+      {exhibit && (
+        <ImageModal
+          img={exhibit.img}
+          caption={exhibit.caption}
+          darkMode={darkMode}
+          onClose={()=>setExhibit(null)}
+        />
+      )}
       {activeBoard && (
         <WhiteboardModal config={WHITEBOARD_CONFIG.find((b) => b.id === activeBoard)!} onClose={closeAndRelock} darkMode={darkMode} />
       )}
@@ -437,6 +475,33 @@ function InteractAtPoint({
 }
 
 /* ---------- Whiteboard Modal (Minecraft-themed, scrollable + ESC) ---------- */
+function ImageModal({
+  img, caption, onClose, darkMode
+}: { img: string; caption: string; onClose: ()=>void; darkMode:boolean }) {
+  const paper = darkMode ? "#0b1220" : "#ffffff";
+  const frame = darkMode ? "#0b1220" : "#0f172a";
+  const ink   = darkMode ? "#e5e7eb" : "#111827";
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div onMouseDown={(e)=>{ if(e.target===e.currentTarget) onClose(); }}
+         style={{position:"fixed",inset:0,display:"flex",alignItems:"center",justifyContent:"center",
+                 background:"rgba(0,0,0,0.85)", zIndex:40, padding:"2rem"}}>
+      <div onMouseDown={(e)=>e.stopPropagation()}
+           style={{width:"80vw",maxWidth:900, background:paper, border:`6px solid ${frame}`, boxShadow:"0 10px 40px rgba(0,0,0,0.6)"}}>
+        <img src={img} alt="exhibit" style={{display:"block", width:"100%", height:"auto"}} />
+        <div style={{padding:"1rem", color:ink, fontFamily:"monospace"}}>{caption}</div>
+        <div style={{padding:"0 1rem 1rem", color:ink, opacity:0.8}}>Press ESC to close</div>
+      </div>
+    </div>
+  );
+}
+
 function WhiteboardModal({
   config,
   onClose,
@@ -700,7 +765,8 @@ function MovementControls({
   enabled,
   speed = 3.5,
   sprint = 1.9, // hold Shift to sprint
-}: { enabled: boolean; speed?: number; sprint?: number }) {
+  insideHouseId,
+}: { enabled: boolean; speed?: number; sprint?: number; insideHouseId?: string | null}) {
   const { camera } = useThree();
   const keys = useRef<{ [k: string]: boolean }>({});
   const velocity = useRef(new THREE.Vector3());
@@ -715,7 +781,17 @@ function MovementControls({
 
   const climbing = useRef(false);
   const climbVolRef = useRef<AABB | null>(null);
-
+  useEffect(() => {
+    function onTeleport(e: any) {
+      const { x, y, z } = (e as CustomEvent).detail || {};
+      if (typeof x === "number" && typeof y === "number" && typeof z === "number") {
+        camera.position.set(x, y, z);
+        vY.current = 0; // stop vertical velocity on teleport
+      }
+    }
+    window.addEventListener("teleport-to", onTeleport as any);
+    return () => window.removeEventListener("teleport-to", onTeleport as any);
+  }, [camera]);
   // Keys + ladder toggle (F)
   const lastLadderToggle = useRef(0); 
   useEffect(() => {
@@ -755,6 +831,7 @@ function MovementControls({
     const yMin = (camera.position.y - baseEye) + 0.02; // feet
     const yMax = camera.position.y - 0.02;             // head
     for (const a of GLOBAL_BLOCKERS) {
+      if (insideHouseId && a.tag === insideHouseId) continue;
       if (
         x >= a.min[0] - radius && x <= a.max[0] + radius &&
         z >= a.min[2] - radius && z <= a.max[2] + radius
@@ -908,6 +985,13 @@ function MovementControls({
 /* ---------- World ---------- */
 function World({ darkMode,enabled,setPrompt }: { darkMode: boolean;enabled:boolean;setPrompt: (s: string | null) => void; }) {
   const groundTex = useMemo(() => makeVoxelGroundTexture(darkMode), [darkMode]);
+  const houseDefs = [
+    { id: "house-0", x: -16, z: -12 },
+    { id: "house-1", x:  16, z: -10 },
+    { id: "house-2", x: -14, z:  14 },
+    { id: "house-3", x:  14, z:  14 },
+  ];
+  ;(globalThis as any).__HOUSE_DEFS__ = houseDefs;
   useEffect(() => () => { groundTex.dispose?.(); }, [groundTex]);
   useEffect(() => {
     const blockers: AABB[] = [];
@@ -928,29 +1012,37 @@ function World({ darkMode,enabled,setPrompt }: { darkMode: boolean;enabled:boole
     });
   
     // --- Houses: walls = blockers, roof slab = walkable ---
-    const houses: [number,number][] = [[-16,-12],[16,-10],[-14,14],[14,14]];
     const baseW=8, baseH=4.4, baseD=8;
-    const roofT = 0.4, over=0.6;
-  
-    houses.forEach(([x,z])=>{
-      // Base brick box blocks movement
-      blockers.push({ min:[x-baseW/2, 0, z-baseD/2], max:[x+baseW/2, baseH, z+baseD/2] });
-  
-      // Flat roof: add a thin walkable top slightly inset to avoid side-grab
-      const inset = 0.1;
-      const topMin:[number,number,number] = [
-        x-(baseW+over)/2 + inset, baseH, z-(baseD+over)/2 + inset
-      ];
-      const topMax:[number,number,number] = [
-        x+(baseW+over)/2 - inset, baseH + 0.12, z+(baseD+over)/2 - inset
-      ];
-      walk.push({ min: topMin, max: topMax });
-  
-      // Ladder climb volume (same as you had)
-      const lw = 0.8, ld = 0.5, lh = baseH + roofT;
-      const lx = x + baseW*0.35; const lz = z + baseD/2 + ld/2 + 0.02;
-      climb.push({ min:[lx-lw/2, 0, lz-ld/2], max:[lx+lw/2, lh, lz+ld/2] });
+    const roofT = 0.4, over=0.6, inset=0.1, ld=0.5;
+
+    houseDefs.forEach((h) => {
+      const { x, z, id } = h;
+
+      // tag the big shell so we can ignore it when "inside"
+      blockers.push({
+        min:[x-baseW/2, 0, z-baseD/2],
+        max:[x+baseW/2, baseH, z+baseD/2],
+        tag: id,                               // <— tag!
+      });
+
+      // thin walkable roof
+      walk.push({
+        min: [x-(baseW+over)/2 + inset, baseH,               z-(baseD+over)/2 + inset],
+        max: [x+(baseW+over)/2 - inset, baseH + 0.12,        z+(baseD+over)/2 - inset],
+      });
+
+      // ladder volume
+      const lx = x + baseW*0.35;
+      const lz = z + baseD/2 + ld/2 + 0.02;
+      const lh = baseH + roofT;
+      climb.push({ min:[lx-0.8/2, 0, lz-ld/2], max:[lx+0.8/2, lh, lz+ld/2] });
+
+      // store handy points on the defs so we can use them elsewhere:
+      (h as any).doorWorld = new THREE.Vector3(x, 0, z + baseD/2 + 0.1);
+      (h as any).insideSpawn = new THREE.Vector3(x, 1.6, z + baseD/2 - 2.0);
+      (h as any).interiorLight = new THREE.Vector3(x, baseH*0.6, z);
     });
+
   
     // --- Parkour boxes: sides = blockers, top = walkable ---
     getParkourDefs().forEach(b=>{
@@ -983,12 +1075,22 @@ function World({ darkMode,enabled,setPrompt }: { darkMode: boolean;enabled:boole
         <meshBasicMaterial map={groundTex} color={darkMode ? "#bcdcbc" : "#ffffff"} />
       </mesh>
       <Trees darkMode={darkMode}/>
-      <Houses />
+      <Houses darkMode={darkMode} defs={houseDefs} />
       <ParkourBoxes />
       <CloudField darkMode={darkMode}/>
       <LadderPrompts enabled={enabled} setPrompt={setPrompt} />
       <ArenaWalls />
+      {darkMode && houseDefs.map(h => (
+        <pointLight
+          key={h.id}
+          position={(h as any).interiorLight}
+          intensity={0.9}
+          distance={10}
+          color={"#ffd27a"}
+        />
+      ))}
     </group>
+    
   );
 }
 
@@ -1024,34 +1126,68 @@ function Tree({ position = [0,0,0] as [number,number,number], darkMode }: { posi
 }
 
 
-function Houses(){
-  const list: [number,number][] = [[-16,-12],[16,-10],[-14,14],[14,14]];
-  return <group>{list.map(([x,z],i)=>(<House key={i} position={[x,0,z]} />))}</group>;
+function Houses({
+  darkMode,
+  defs,
+}: {
+  darkMode: boolean;
+  defs: { id: string; x: number; z: number }[];
+}) {
+  return (
+    <group>
+      {defs.map((h) => (
+        <House key={h.id} position={[h.x, 0, h.z]} darkMode={darkMode} />
+      ))}
+    </group>
+  );
 }
-function House({ position=[0,0,0] as [number,number,number] }){
+function House({
+  position = [0,0,0] as [number,number,number],
+  darkMode,
+}: {
+  position: [number,number,number];
+  darkMode: boolean;
+}) {
   const plank = useMemo(()=>makePlankTexture(),[]);
   const brick = useMemo(()=>makeBrickTexture(),[]);
   const baseW=8, baseH=4.4, baseD=8;
-  const centerY = baseH/2; // keeps the base on the ground
-  const ridgeY = baseH;    // top of brick box
+  const centerY = baseH/2;
+  const ridgeY = baseH;
+
   return (
     <group position={position}>
       {/* base */}
-      <mesh position={[0,centerY,0]}><boxGeometry args={[baseW,baseH,baseD]} /><meshBasicMaterial map={brick} /></mesh>
-      {/* door + window */}
-      <mesh position={[0,1.2,baseD/2+0.01]}><planeGeometry args={[1.8,2.4]} /><meshBasicMaterial map={plank} /></mesh>
-      <mesh position={[baseW/3.1,2.6,baseD/2+0.01]}><planeGeometry args={[1.4,1.0]} /><meshBasicMaterial color="#a3e7ff" /></mesh>
+      <mesh position={[0,centerY,0]}>
+        <boxGeometry args={[baseW,baseH,baseD]} />
+        <meshBasicMaterial map={brick} />
+      </mesh>
+
+      {/* door + window (window glows at night) */}
+      <mesh position={[0,1.2,baseD/2+0.01]}>
+        <planeGeometry args={[1.8,2.4]} />
+        <meshBasicMaterial map={plank} />
+      </mesh>
+      <mesh position={[baseW/3.1,2.6,baseD/2+0.01]}>
+        <planeGeometry args={[1.4,1.0]} />
+        <meshBasicMaterial color={darkMode ? "#ffe599" : "#a3e7ff"} />
+      </mesh>
+
       {/* flat roof slab for walkable top */}
       <mesh position={[0, ridgeY + 0.2, 0]}>
         <boxGeometry args={[baseW+0.6, 0.4, baseD+0.6]} />
         <meshBasicMaterial map={plank} />
       </mesh>
-      {/* ladder on front face (climbable via volume) */}
+
+      {/* ladder on front face */}
       <group position={[baseW*0.35, 1.6, baseD/2 + 0.02]}>
-        {/* side rails */}
-        <mesh position={[-0.35, 0.0, 0]}><boxGeometry args={[0.12, 3.0, 0.06]} /><meshBasicMaterial map={plank} /></mesh>
-        <mesh position={[ 0.35, 0.0, 0]}><boxGeometry args={[0.12, 3.0, 0.06]} /><meshBasicMaterial map={plank} /></mesh>
-        {/* rungs */}
+        <mesh position={[-0.35, 0.0, 0]}>
+          <boxGeometry args={[0.12, 3.0, 0.06]} />
+          <meshBasicMaterial map={plank} />
+        </mesh>
+        <mesh position={[ 0.35, 0.0, 0]}>
+          <boxGeometry args={[0.12, 3.0, 0.06]} />
+          <meshBasicMaterial map={plank} />
+        </mesh>
         {Array.from({length:7}).map((_,i)=> (
           <mesh key={i} position={[0, -1.4 + i*(3.0/6), 0]}>
             <boxGeometry args={[0.7, 0.08, 0.06]} />
@@ -1062,6 +1198,7 @@ function House({ position=[0,0,0] as [number,number,number] }){
     </group>
   );
 }
+
 
 function ParkourBoxes(){
   const plank = useMemo(()=>makePlankTexture(),[]);
@@ -1160,7 +1297,51 @@ function LadderPrompts({enabled,setPrompt}: {enabled: boolean;setPrompt: (s: str
     </group>
   );
 }
-
+function DoorPrompts({
+  enabled,
+  houseDefs,
+  setPrompt,
+  setInside,
+  insideId,
+}: {
+  enabled: boolean;
+  houseDefs: {id:string; doorWorld: THREE.Vector3; insideSpawn: THREE.Vector3}[];
+  setPrompt: (s: string | null) => void;
+  setInside: (id: string | null) => void;
+  insideId: string | null;
+}) {
+  return (
+    <group>
+      {houseDefs.map(h => (
+        <InteractAtPoint
+          key={`door-${h.id}`}
+          target={h.doorWorld}
+          enabled={enabled}
+          keyName="q"
+          range={2.0}
+          label={insideId === h.id ? "Press Q to Exit" : "Press Q to Enter"}
+          onTrigger={() => {
+            const goingIn = insideId !== h.id;
+            if (goingIn) {
+              setInside(h.id);
+              window.dispatchEvent(new CustomEvent("teleport-to", {
+                detail: { x: h.insideSpawn.x, y: h.insideSpawn.y, z: h.insideSpawn.z }
+              }));
+            } else {
+              setInside(null);
+              // pop just outside the door
+              const out = h.doorWorld.clone(); out.y = 1.6; out.z += 0.6;
+              window.dispatchEvent(new CustomEvent("teleport-to", {
+                detail: { x: out.x, y: out.y, z: out.z }
+              }));
+            }
+          }}
+          setPrompt={setPrompt}
+        />
+      ))}
+    </group>
+  );
+}
 /* Tall perimeter walls to keep players in-bounds */
 function ArenaWalls(){
   const brick = useMemo(()=>makeBrickTexture(),[]);
@@ -1187,6 +1368,69 @@ function ArenaWalls(){
         <boxGeometry args={[span, wallH, thick]} />
         <meshBasicMaterial map={brick} />
       </mesh>
+    </group>
+  );
+}
+function HouseInteriors({
+  enabled,
+  houseDefs,
+  setPrompt,
+  setExhibit,
+  insideId,
+}: {
+  enabled: boolean;
+  darkMode: boolean;
+  houseDefs: {id:string; x:number; z:number}[];
+  setPrompt: (s: string | null) => void;
+  setExhibit: (v: {img: string; caption: string} | null) => void;
+  insideId: string | null;
+}) {
+  // simple example: one exhibit per house, hung on the back wall
+  const exhibits = [
+    { id: "house-0", img: "images/imageme1.jpeg", caption: "Me, IRL." },
+    { id: "house-1", img: "images/imagejetbot1.jpeg", caption: "Jetbot build." },
+    { id: "house-2", img: "images/imagelidar1.jpeg", caption: "LIDAR project." },
+    { id: "house-3", img: "images/imagesnake1.jpg", caption: "C++ Snake." },
+  ];
+  const frameTex = useMemo(()=>makePlankTexture(),[]);
+
+  return (
+    <group>
+      {houseDefs.map((h, i) => {
+        const ex = exhibits[i % exhibits.length];
+        // place on back wall (−Z), a little above eye level
+        const pos = new THREE.Vector3(h.x, 2.2, h.z - 3.6);
+        const promptPos = pos.clone(); promptPos.z += 0.8;
+
+        return (
+          <group key={`int-${h.id}`}>
+            {/* the framed picture */}
+            <group position={pos.toArray()}>
+              {/* wood frame */}
+              <mesh position={[0,0,0.02]}>
+                <boxGeometry args={[2.6, 1.9, 0.08]} />
+                <meshBasicMaterial map={frameTex} />
+              </mesh>
+              {/* image */}
+              <mesh>
+                <planeGeometry args={[2.3, 1.6]} />
+                <meshBasicMaterial map={new THREE.TextureLoader().load(asset(ex.img))} />
+              </mesh>
+            </group>
+
+            {/* "Press E to view" prompt/trigger — only useful if you're inside this house */}
+            <InteractAtPoint
+              target={promptPos}
+              enabled={enabled && insideId === h.id}
+              keyName="e"
+              range={2.0}
+              label={"Press E to view"}
+              onTrigger={() => setExhibit({ img: asset(ex.img), caption: ex.caption })}
+              setPrompt={setPrompt}
+            />
+          </group>
+        );
+      })}
     </group>
   );
 }
