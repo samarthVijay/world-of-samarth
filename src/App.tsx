@@ -1290,11 +1290,7 @@ function LadderPrompts({enabled,setPrompt}: {enabled: boolean;setPrompt: (s: str
   );
 }
 function DoorPrompts({
-  enabled,
-  houseDefs,
-  setPrompt,
-  setInside,
-  insideId,
+  enabled, houseDefs, setPrompt, setInside, insideId,
 }: {
   enabled: boolean;
   houseDefs: {id:string; doorWorld: THREE.Vector3; insideSpawn: THREE.Vector3}[];
@@ -1304,36 +1300,39 @@ function DoorPrompts({
 }) {
   return (
     <group>
-      {houseDefs.map(h => (
-        <InteractAtPoint
-          key={`door-${h.id}`}
-          target={h.doorWorld}
-          enabled={enabled}
-          keyName="q"
-          range={2.0}
-          label={insideId === h.id ? "Press Q to Exit" : "Press Q to Enter"}
-          onTrigger={() => {
-            const goingIn = insideId !== h.id;
-            if (goingIn) {
-              setInside(h.id);
-              window.dispatchEvent(new CustomEvent("teleport-to", {
-                detail: { x: h.insideSpawn.x, y: h.insideSpawn.y, z: h.insideSpawn.z }
-              }));
-            } else {
-              setInside(null);
-              // pop just outside the door
-              const out = h.doorWorld.clone(); out.y = 1.6; out.z += 0.6;
-              window.dispatchEvent(new CustomEvent("teleport-to", {
-                detail: { x: out.x, y: out.y, z: out.z }
-              }));
-            }
-          }}
-          setPrompt={setPrompt}
-        />
-      ))}
+      {houseDefs.map(h => {
+        if (!h.doorWorld || !h.insideSpawn) return null; // safety
+        return (
+          <InteractAtPoint
+            key={`door-${h.id}`}
+            target={h.doorWorld}             // ✅ real Vector3, ready on first render
+            enabled={enabled}
+            keyName="q"
+            range={2.0}
+            label={insideId === h.id ? "Press Q to Exit" : "Press Q to Enter"}
+            onTrigger={() => {
+              const goingIn = insideId !== h.id;
+              if (goingIn) {
+                setInside(h.id);
+                window.dispatchEvent(new CustomEvent("teleport-to", {
+                  detail: { x: h.insideSpawn.x, y: h.insideSpawn.y, z: h.insideSpawn.z }
+                }));
+              } else {
+                setInside(null);
+                const out = h.doorWorld.clone(); out.y = 1.6; out.z += 0.6;
+                window.dispatchEvent(new CustomEvent("teleport-to", {
+                  detail: { x: out.x, y: out.y, z: out.z }
+                }));
+              }
+            }}
+            setPrompt={setPrompt}
+          />
+        );
+      })}
     </group>
   );
 }
+
 /* Tall perimeter walls to keep players in-bounds */
 function ArenaWalls(){
   const brick = useMemo(()=>makeBrickTexture(),[]);
