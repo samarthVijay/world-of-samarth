@@ -12,9 +12,16 @@ const asset = (p: string) => `${import.meta.env.BASE_URL}${p.replace(/^\/+/, '')
 
 // --- Simple collision system (AABBs) ---
 type AABB = { min: [number, number, number]; max: [number, number, number] };
-let GLOBAL_COLLIDERS: AABB[] = [];
-function setColliders(aabbs: AABB[]) { GLOBAL_COLLIDERS = aabbs; }
-// Ladders (climb volumes) — same AABB shape
+
+// Solids you cannot pass through (trunks, walls, box sides, arena walls)
+let GLOBAL_BLOCKERS: AABB[] = [];
+function setBlockers(aabbs: AABB[]) { GLOBAL_BLOCKERS = aabbs; }
+
+// Flat tops you can stand on (box/roof tops only)
+let GLOBAL_WALKABLES: AABB[] = [];
+function setWalkSurfaces(aabbs: AABB[]) { GLOBAL_WALKABLES = aabbs; }
+
+// Ladders (unchanged)
 let GLOBAL_CLIMB_VOLUMES: AABB[] = [];
 function setClimbVolumes(vols: AABB[]) { GLOBAL_CLIMB_VOLUMES = vols; }
 
@@ -150,7 +157,7 @@ const WHITEBOARD_CONFIG = [
     images: [
       asset('images/imageme1.jpeg'),
       asset('images/imageme2.jpeg'),
-      asset('images/imageme3.jpeg'),,
+      asset('images/imageme3.jpeg'),
     ],
     image: "https://via.placeholder.com/400x300/f87171/ffffff?text=Contact",
   },
@@ -420,24 +427,32 @@ function MovementControls({ enabled, speed = 3.5 }: { enabled: boolean; speed?: 
   }, [camera]);
 
   function collidesXYAt(x:number, z:number, height:number){
-    const yMin = height + 0.02; // stand on top surfaces without blocking
+    const radius = 0.4;
+    const baseEye = 1.6;
+    const yMin = height + 0.02;
     const yMax = height + baseEye - 0.02;
-    for(const a of GLOBAL_COLLIDERS){
-      if (x >= a.min[0]-radius && x <= a.max[0]+radius && z >= a.min[2]-radius && z <= a.max[2]+radius) {
+  
+    for (const a of GLOBAL_BLOCKERS) {
+      if (x >= a.min[0]-radius && x <= a.max[0]+radius &&
+          z >= a.min[2]-radius && z <= a.max[2]+radius) {
         if (yMax > a.min[1] && yMin < a.max[1]) return true;
       }
     }
     return false;
   }
+  
   function groundAt(x:number, z:number){
-    let g = 0; // base ground level
-    for(const a of GLOBAL_COLLIDERS){
-      if (x >= a.min[0]-radius && x <= a.max[0]+radius && z >= a.min[2]-radius && z <= a.max[2]+radius) {
+    // Only walkable tops contribute to “ground”. Blockers (trees/walls) don’t.
+    let g = 0; // world ground
+    for (const a of GLOBAL_WALKABLES) {
+      if (x >= a.min[0] && x <= a.max[0] &&
+          z >= a.min[2] && z <= a.max[2]) {
         g = Math.max(g, a.max[1]);
       }
     }
     return g;
   }
+  
   function inClimbVol(x:number, z:number): AABB | null {
     for (const a of GLOBAL_CLIMB_VOLUMES) {
       if (x >= a.min[0] && x <= a.max[0] && z >= a.min[2] && z <= a.max[2]) return a;
@@ -511,36 +526,71 @@ function MovementControls({ enabled, speed = 3.5 }: { enabled: boolean; speed?: 
 /* ---------- World ---------- */
 function World() {
   const groundTex = useMemo(() => makeVoxelGroundTexture(), []);
-
-  // Build colliders once (trees + houses + parkour boxes)
   useEffect(() => {
-    const cols: AABB[] = [];
+    const blockers: AABB[] = [];
+    const walk: AABB[] = [];
     const climb: AABB[] = [];
-    // Trees — match positions used in <Trees />
+  
+    // --- Trees (blockers only) ---
     const fixedTrees: [number, number][] = [[-3,-6],[6,-3],[-6,5],[4,-8]];
     const ringR = 20; const ringN = 18;
-    const ringTrees: [number, number][] = Array.from({length: ringN}, (_,i)=>[Math.cos((i/ringN)*Math.PI*2)*ringR, Math.sin((i/ringN)*Math.PI*2)*ringR]);
+    const ringTrees: [number, number][] = Array.from({length: ringN}, (_,i)=>[
+      Math.cos((i/ringN)*Math.PI*2)*ringR,
+      Math.sin((i/ringN)*Math.PI*2)*ringR
+    ]);
     const allTrees = [...fixedTrees, ...ringTrees];
-    allTrees.forEach(([x,z])=>{ const w=0.6, d=0.6, h=2; cols.push({ min:[x-w/2,0,z-d/2], max:[x+w/2,h,z+d/2] }); });
-
-    // Houses — match positions used in <Houses /> and base dims
+    allTrees.forEach(([x,z])=>{
+      const w=0.6, d=0.6, h=2.0;
+      blockers.push({ min:[x-w/2, 0, z-d/2], max:[x+w/2, h, z+d/2] });
+    });
+  
+    // --- Houses: walls = blockers, roof slab = walkable ---
     const houses: [number,number][] = [[-16,-12],[16,-10],[-14,14],[14,14]];
-    const baseW=8, baseH=4.4, baseD=8; const roofT = 0.4; const over=0.6;
+    const baseW=8, baseH=4.4, baseD=8;
+    const roofT = 0.4, over=0.6;
+  
     houses.forEach(([x,z])=>{
-      // base block
-      cols.push({ min:[x-baseW/2,0,z-baseD/2], max:[x+baseW/2,baseH,z+baseD/2] });
-      // flat roof collider (walkable)
-      cols.push({ min:[x-(baseW+over)/2, baseH, z-(baseD+over)/2], max:[x+(baseW+over)/2, baseH+roofT, z+(baseD+over)/2] });
-      // ladder climb volume on front (+Z) right-of-center
-      const lw = 0.8, ld = 0.5, lh = baseH + roofT; const lx = x + baseW*0.35; const lz = z + baseD/2 + ld/2 + 0.02;
+      // Base brick box blocks movement
+      blockers.push({ min:[x-baseW/2, 0, z-baseD/2], max:[x+baseW/2, baseH, z+baseD/2] });
+  
+      // Flat roof: add a thin walkable top slightly inset to avoid side-grab
+      const inset = 0.1;
+      const topMin:[number,number,number] = [
+        x-(baseW+over)/2 + inset, baseH, z-(baseD+over)/2 + inset
+      ];
+      const topMax:[number,number,number] = [
+        x+(baseW+over)/2 - inset, baseH + 0.12, z+(baseD+over)/2 - inset
+      ];
+      walk.push({ min: topMin, max: topMax });
+  
+      // Ladder climb volume (same as you had)
+      const lw = 0.8, ld = 0.5, lh = baseH + roofT;
+      const lx = x + baseW*0.35; const lz = z + baseD/2 + ld/2 + 0.02;
       climb.push({ min:[lx-lw/2, 0, lz-ld/2], max:[lx+lw/2, lh, lz+ld/2] });
     });
-
-    // Parkour boxes — circular staircase around boards
-    const boxes = getParkourDefs();
-    boxes.forEach(b=>cols.push({ min:[b.x-b.w/2,0,b.z-b.d/2], max:[b.x+b.w/2,b.h,b.z+b.d/2] }));
-
-    setColliders(cols);
+  
+    // --- Parkour boxes: sides = blockers, top = walkable ---
+    getParkourDefs().forEach(b=>{
+      // solid column blocks horizontally
+      blockers.push({ min:[b.x-b.w/2, 0, b.z-b.d/2], max:[b.x+b.w/2, b.h, b.z+b.d/2] });
+  
+      // add a thin, slightly inset walkable cap
+      const inset = 0.05;
+      walk.push({
+        min: [b.x - b.w/2 + inset, b.h,       b.z - b.d/2 + inset],
+        max: [b.x + b.w/2 - inset, b.h + 0.12, b.z + b.d/2 - inset]
+      });
+    });
+  
+    // --- Arena walls: blockers only ---
+    const H = ARENA_HALF, wallH = 10, thick = 0.6, span = H*2+2;
+    blockers.push({ min:[ H+thick/2- thick/2, 0, -span/2], max:[ H+thick/2+ thick/2, wallH,  span/2] });
+    blockers.push({ min:[-H-thick/2- thick/2,0, -span/2], max:[-H-thick/2+ thick/2, wallH,  span/2] });
+    blockers.push({ min:[-span/2, 0,  H+thick/2- thick/2], max:[ span/2, wallH,  H+thick/2+ thick/2] });
+    blockers.push({ min:[-span/2, 0, -H-thick/2- thick/2], max:[ span/2, wallH, -H-thick/2+ thick/2] });
+  
+    setBlockers(blockers);
+    setWalkSurfaces(walk);
     setClimbVolumes(climb);
   }, []);
 
