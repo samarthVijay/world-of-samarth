@@ -5,6 +5,7 @@ import * as THREE from "three";
 // ===== Theming + Layout =====
 const CLOUD_ALT = 12;   // clouds stay above everything
 const BOARD_ALT = 2.8;  // grounded boards' center height
+const TITLE_ALT = 10;
 const ARENA_HALF = 26;   // half-width of playable area (for clamping + walls)
 // Resolves to "/world-of-samarth/<path>" in production, "/" in dev
 // --- movement tolerances (prevents edge fall-through) ---
@@ -1574,8 +1575,7 @@ function GroundedBoard({ position, rotation, config, darkMode}: { position:[numb
   );
 }
 
-/* ---------- Thick floating sign with RGB border animation ---------- */
-/* ---------- Optimized ThickSkySign (static + throttled RGB overlay) ---------- */
+/* ---------- Optimized + Reliable ThickSkySign ---------- */
 function ThickSkySign({
   text,
   rgbActive,
@@ -1586,156 +1586,18 @@ function ThickSkySign({
   darkMode: boolean;
 }) {
   const groupRef = useRef<THREE.Group>(null);
-
-  // smaller canvases (enough at viewing distance)
-  const W = 1024;
-  const H = 450;
-
-  /* ---------------- Static layer (wood, bands, frame, text) ---------------- */
-  const staticTex = useRef<THREE.CanvasTexture | null>(null);
-  const buildStatic = () => {
-    const c = document.createElement("canvas");
-    c.width = W;
-    c.height = H;
-    const ctx = c.getContext("2d")!;
-
-    // wood base (draw ONCE)
-    ctx.fillStyle = "#7b4f28";
-    ctx.fillRect(0, 0, W, H);
-    for (let i = 0; i < 120; i++) {
-      ctx.fillStyle = `rgba(0,0,0,${0.2 * Math.random()})`;
-      ctx.fillRect(Math.random() * W, Math.random() * H, 8, 8);
-    }
-
-    // top band (dark vs light)
-    if (darkMode) {
-      ctx.fillStyle = "#1d3b2a";
-      ctx.fillRect(0, 0, W, H * 0.25);
-      ctx.fillStyle = "#245a38";
-      ctx.fillRect(0, 0, W, H * 0.18);
-    } else {
-      ctx.fillStyle = "#2e7d32";
-      ctx.fillRect(0, 0, W, H * 0.25);
-      ctx.fillStyle = "#4caf50";
-      ctx.fillRect(0, 0, W, H * 0.18);
-    }
-
-    // frame
-    ctx.lineWidth = 22;
-    ctx.strokeStyle = darkMode ? "#0b1220" : "#0f172a";
-    ctx.strokeRect(0, 0, W, H);
-
-    // title text
-    ctx.fillStyle = darkMode ? "#000000" : "#ffffff";
-    ctx.font = "900 96px 'Press Start 2P', monospace";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(text.toUpperCase(), W / 2, H / 2 + 8);
-
-    // upload once
-    const t = new THREE.CanvasTexture(c);
-    t.anisotropy = 8;
-    t.needsUpdate = true;
-    staticTex.current = t;
-  };
-
-  useEffect(() => {
-    buildStatic();
-    return () => {
-      staticTex.current?.dispose();
-      staticTex.current = null;
-    };
-    // rebuild when text or theme changes
-  }, [text, darkMode]);
-
-  /* -------------------- RGB overlay (transparent, throttled) -------------------- */
-  const overlayCanvas = useRef<HTMLCanvasElement | null>(null);
-  const overlayCtx = useRef<CanvasRenderingContext2D | null>(null);
-  const overlayTex = useRef<THREE.CanvasTexture | null>(null);
-
-  // one-time init for the transparent overlay
-  useEffect(() => {
-    const c = document.createElement("canvas");
-    c.width = W;
-    c.height = H;
-    overlayCanvas.current = c;
-    overlayCtx.current = c.getContext("2d");
-    const t = new THREE.CanvasTexture(c);
-    t.anisotropy = 4;
-    t.needsUpdate = true;
-    overlayTex.current = t;
-
-    return () => {
-      overlayTex.current?.dispose();
-      overlayTex.current = null;
-      overlayCanvas.current = null;
-      overlayCtx.current = null;
-    };
-  }, []);
-
-  // draw only the chasing border (no background)
-  const drawBorder = (phase: number) => {
-    const ctx = overlayCtx.current!;
-    ctx.clearRect(0, 0, W, H);
-
-    const SEG = 28; // px per colored dash
-    const perim = 2 * (W + H);
-
-    ctx.lineWidth = 28;
-    ctx.lineCap = "butt";
-
-    // helper: draw a segment along the rectangle perimeter from s -> e (in px)
-    const drawSeg = (s: number, e: number) => {
-      // normalize
-      s = ((s % perim) + perim) % perim;
-      e = ((e % perim) + perim) % perim;
-      const drawEdge = (x1: number, y1: number, x2: number, y2: number) => {
-        ctx.beginPath();
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
-        ctx.stroke();
-      };
-
-      const step = (p: number, len: number) => {
-        // map param p along top → right → bottom → left
-        if (p < W) return drawEdge(p, 0, Math.min(p + len, W), 0);
-        p -= W;
-        if (p < H) return drawEdge(W, p, W, Math.min(p + len, H));
-        p -= H;
-        if (p < W) return drawEdge(W - p, H, Math.max(W - (p + len), 0), H);
-        p -= W;
-        return drawEdge(0, H - p, 0, Math.max(H - (p + len), 0));
-      };
-
-      // handle wrap
-      if (s <= e) step(s, e - s);
-      else {
-        step(s, perim - s);
-        step(0, e);
-      }
-    };
-
-    // paint dashed rainbow segments around the frame
-    for (let p = 0; p < perim; p += SEG * 1.6) {
-      const hue = ((p / perim) * 360 + phase * 180) % 360;
-      ctx.strokeStyle = `hsl(${hue} 100% 60%)`;
-      drawSeg(p, p + SEG);
-    }
-
-    overlayTex.current!.needsUpdate = true;
-  };
-
-  // throttle border updates
+  const texRef = useRef<THREE.CanvasTexture | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const phaseRef = useRef(0);
-  const lastUpdate = useRef(0);
-  const FPS = 12; // 12 fps is plenty
 
-  /* ---------------- float + spin + (throttled) RGB update ---------------- */
+  // --- one-shot spin state ---
   const spinning = useRef(false);
   const spinStart = useRef(0);
-  const spinDuration = useRef(1200);
+  const spinDuration = useRef(1200); // ms
   const baseRotation = useRef(0);
 
+  // spin trigger
   useEffect(() => {
     const startSpin = () => {
       if (!groupRef.current) return;
@@ -1749,65 +1611,194 @@ function ThickSkySign({
     return () => window.removeEventListener("spin-banner", startSpin as any);
   }, []);
 
-  useFrame(({ clock }) => {
-    if (!groupRef.current) return;
+  // init canvas + texture once
+  if (!canvasRef.current) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 2048;
+    canvas.height = 900;
+    canvasRef.current = canvas;
+    ctxRef.current = canvas.getContext("2d");
+    texRef.current = new THREE.CanvasTexture(canvas);
+    texRef.current.anisotropy = 8;
+    texRef.current.needsUpdate = true;
+  }
 
-    // gentle float
-    const t = clock.getElapsedTime();
-    groupRef.current.position.y = 10 + Math.sin(t * 0.35) * 0.12;
+  // draw routine
+  const drawBanner = (phase: number) => {
+    const canvas = canvasRef.current!;
+    const ctx = ctxRef.current!;
 
-    // one-shot spin (easeOutCubic)
-    if (spinning.current) {
-      const u = Math.min(
-        (performance.now() - spinStart.current) / spinDuration.current,
-        1
+    // background wood
+    ctx.fillStyle = "#7b4f28";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // noise speckles
+    for (let i = 0; i < 500; i++) {
+      ctx.fillStyle = `rgba(0,0,0,${Math.random() * 0.2})`;
+      ctx.fillRect(
+        Math.random() * canvas.width,
+        Math.random() * canvas.height,
+        10,
+        10
       );
-      const eased = 1 - Math.pow(1 - u, 3);
-      groupRef.current.rotation.y = baseRotation.current + eased * (Math.PI * 2);
-      if (u >= 1) spinning.current = false;
     }
 
-    // RGB overlay (only when active, throttled)
-    if (rgbActive && overlayCtx.current) {
+    // top green band
+    if (darkMode) {
+      ctx.fillStyle = "#1d3b2a";
+      ctx.fillRect(0, 0, canvas.width, canvas.height * 0.25);
+      ctx.fillStyle = "#245a38";
+      ctx.fillRect(0, 0, canvas.width, canvas.height * 0.18);
+    } else {
+      ctx.fillStyle = "#2e7d32";
+      ctx.fillRect(0, 0, canvas.width, canvas.height * 0.25);
+      ctx.fillStyle = "#4caf50";
+      ctx.fillRect(0, 0, canvas.width, canvas.height * 0.18);
+    }
+
+    // frame
+    ctx.lineWidth = 40;
+    ctx.strokeStyle = darkMode ? "#0b1220" : "#0f172a";
+    ctx.strokeRect(0, 0, canvas.width, canvas.height);
+
+    // RGB border
+    if (rgbActive) {
+      const seg = 32;
+      const perim = 2 * (canvas.width + canvas.height);
+      for (let p = 0; p < perim; p += seg) {
+        const hue = ((p / perim) * 360 + phase * 180) % 360;
+        ctx.strokeStyle = `hsl(${hue},100%,60%)`;
+        ctx.lineWidth = 60;
+
+        let s = p,
+          e = Math.min(p + seg, perim);
+        const drawEdge = (x1: number, y1: number, x2: number, y2: number) => {
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+        };
+
+        while (s < e) {
+          let x1 = 0,
+            y1 = 0,
+            x2 = 0,
+            y2 = 0;
+          let left = e - s;
+
+          if (s < canvas.width) {
+            const d1 = Math.min(left, canvas.width - s);
+            x1 = s;
+            y1 = 0;
+            x2 = s + d1;
+            y2 = 0;
+            drawEdge(x1, y1, x2, y2);
+            s += d1;
+            continue;
+          }
+          if (s < canvas.width + canvas.height) {
+            const k = s - canvas.width;
+            const d1 = Math.min(left, canvas.height - k);
+            x1 = canvas.width;
+            y1 = k;
+            x2 = canvas.width;
+            y2 = k + d1;
+            drawEdge(x1, y1, x2, y2);
+            s += d1;
+            continue;
+          }
+          if (s < canvas.width * 2 + canvas.height) {
+            const k = s - (canvas.width + canvas.height);
+            const d1 = Math.min(left, canvas.width - k);
+            x1 = canvas.width - k;
+            y1 = canvas.height;
+            x2 = canvas.width - (k + d1);
+            y2 = canvas.height;
+            drawEdge(x1, y1, x2, y2);
+            s += d1;
+            continue;
+          }
+          {
+            const k = s - (canvas.width * 2 + canvas.height);
+            const d1 = Math.min(left, canvas.height - k);
+            x1 = 0;
+            y1 = canvas.height - k;
+            x2 = 0;
+            y2 = canvas.height - (k + d1);
+            drawEdge(x1, y1, x2, y2);
+            s += d1;
+            continue;
+          }
+        }
+      }
+    }
+
+    // text
+    ctx.fillStyle = darkMode ? "#000000" : "#ffffff";
+    ctx.font = "900 150px 'Press Start 2P', monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(text.toUpperCase(), canvas.width / 2, canvas.height / 2 + 10);
+
+    texRef.current!.needsUpdate = true;
+  };
+
+  // animate
+  useFrame(({ clock }) => {
+    if (!groupRef.current) return;
+    const t = clock.getElapsedTime();
+
+    // float
+    groupRef.current.position.y = TITLE_ALT + Math.sin(t * 0.35) * 0.12;
+
+    // RGB border animation
+    if (rgbActive) {
+      phaseRef.current += 0.01;
+      drawBanner(phaseRef.current);
+    }
+
+    // spin
+    if (spinning.current) {
       const now = performance.now();
-      if (now - lastUpdate.current > 1000 / FPS) {
-        phaseRef.current += 0.02;
-        drawBorder(phaseRef.current);
-        lastUpdate.current = now;
+      const u = Math.min((now - spinStart.current) / spinDuration.current, 1);
+      const eased = 1 - Math.pow(1 - u, 3);
+      groupRef.current.rotation.y =
+        baseRotation.current + eased * (Math.PI * 2);
+      if (u >= 1) {
+        spinning.current = false;
+        groupRef.current.rotation.y = baseRotation.current + Math.PI * 2;
       }
     }
   });
 
-  // redraw static texture if theme or text changes (handled by useEffect above)
+  // initial draw
+  useEffect(() => {
+    drawBanner(phaseRef.current);
+  }, [text, rgbActive, darkMode]);
 
   return (
-    <group ref={groupRef} position={[0, 10, 0]}>
-      {/* thick wooden slab */}
+    <group ref={groupRef} position={[0, TITLE_ALT, 0]}>
       <mesh>
         <boxGeometry args={[12, 4.5, 0.7]} />
         <meshBasicMaterial map={makePlankTexture()} />
       </mesh>
 
-      {/* front: static */}
+      {/* front face */}
       <mesh position={[0, 0, 0.36]}>
         <planeGeometry args={[11.8, 4.3]} />
-        <meshBasicMaterial map={staticTex.current!} />
-      </mesh>
-
-      {/* front: RGB overlay (transparent) */}
-      <mesh position={[0, 0, 0.365]}>
-        <planeGeometry args={[11.8, 4.3]} />
         <meshBasicMaterial
-          map={overlayTex.current!}
-          transparent
-          depthWrite={false}
+          key={darkMode ? "dark" : "light"}
+          map={texRef.current!}
         />
       </mesh>
 
-      {/* back: static only (no overlay needed) */}
+      {/* back face */}
       <mesh position={[0, 0, -0.36]} rotation={[0, Math.PI, 0]}>
         <planeGeometry args={[11.8, 4.3]} />
-        <meshBasicMaterial map={staticTex.current!} />
+        <meshBasicMaterial
+          key={darkMode ? "dark" : "light"}
+          map={texRef.current!}
+        />
       </mesh>
     </group>
   );
