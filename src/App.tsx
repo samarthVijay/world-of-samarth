@@ -402,7 +402,6 @@ function MovementControls({ enabled, speed = 3.5 }: { enabled: boolean; speed?: 
   const velocity = useRef(new THREE.Vector3());
   const vY = useRef(0); const last = useRef(performance.now());
   const baseEye = 1.6; const gravity = 20; const jumpSpeed = 7.5; const climbSpeed = 3.0;
-  const radius = 0.4; // player radius
 
   const climbing = useRef(false);
   const climbVolRef = useRef<AABB | null>(null);
