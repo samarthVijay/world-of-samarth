@@ -346,8 +346,90 @@ function fadeTo(a: HTMLAudioElement, target: number, ms: number) {
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 const easeInOutQuad = (t: number) => (t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2)/2);
 
+function TitleScreen({
+  onContinue,
+  onLiteMode,
+}: {
+  onContinue: () => void;
+  onLiteMode: () => void;
+}) {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "#1e1e1e",
+        color: "white",
+        display: "flex",
+        flexDirection: "column",
+        gap: "2rem",
+        justifyContent: "center",
+        alignItems: "center",
+        fontFamily: "'Press Start 2P', monospace",
+        zIndex: 9999,
+        textAlign: "center",
+        padding: "2rem",
+      }}
+    >
+      <h1 style={{ fontSize: "2.6rem", color: "#4caf50", margin: 0 }}>
+        WORLD OF SAM
+      </h1>
+
+      <div
+        style={{
+          maxWidth: 720,
+          border: "4px solid #ff4444",
+          background: "#000",
+          padding: "1rem 1.25rem",
+          fontSize: "0.9rem",
+          lineHeight: "1.6",
+          textAlign: "left",
+        }}
+      >
+        <strong>WARNING:</strong> This world runs best with{" "}
+        <span style={{ color: "#ffeb3b" }}>Hardware Acceleration</span>{" "}
+        enabled in your browser. If performance is choppy, enable it in your
+        browser settings or try <em>Lite Mode</em> (reduced effects).
+      </div>
+
+      <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+        <button
+          onClick={onContinue}
+          style={{
+            padding: "1rem 2rem",
+            fontFamily: "'Press Start 2P', monospace",
+            fontSize: "1rem",
+            background: "#4caf50",
+            border: "4px solid #2e7d32",
+            color: "white",
+            cursor: "pointer",
+          }}
+        >
+          CONTINUE
+        </button>
+
+        <button
+          onClick={onLiteMode}
+          style={{
+            padding: "1rem 2rem",
+            fontFamily: "'Press Start 2P', monospace",
+            fontSize: "1rem",
+            background: "#3b82f6",
+            border: "4px solid #1d4ed8",
+            color: "white",
+            cursor: "pointer",
+          }}
+        >
+          PLAY LITE MODE
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
+  const [started, setStarted] = useState(false);
+  const [lowSpec, setLowSpec] = useState(false);
   const [prompt, setPrompt] = useState<string | null>(null);
   const [activeBoard, setActiveBoard] = useState<string | null>(null);
   const [rgbBorder, setRgbBorder] = useState(false);
@@ -397,7 +479,22 @@ export default function App() {
     setActiveBoard(null);
     setTimeout(() => window.dispatchEvent(new CustomEvent("relock-pointer")), 0);
   };
-
+  if (!started) {
+    return (
+      <>
+        <TitleScreen
+          onContinue={() => {
+            setLowSpec(false);
+            setStarted(true);
+          }}
+          onLiteMode={() => {
+            setLowSpec(true);
+            setStarted(true);
+          }}
+        />
+      </>
+    );
+  }
   return (
     
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden" }}>
@@ -436,15 +533,26 @@ export default function App() {
           {prompt}
         </div>
       )}
-      <Canvas camera={{ fov: 70, position: [0, 1.6, 6] }} onCreated={({ gl }) => gl.setClearColor(0x000000, 0)}>
-        <ambientLight intensity={0.7} />
-        <directionalLight position={[8, 20, 10]} intensity={1} />
+      <Canvas camera={{ fov: 70, position: [0, 1.6, 6] }}
+        dpr={lowSpec ? [1, 1] : [1, 1.5]}
+        gl={{
+          antialias: !lowSpec,              // turn off MSAA in lite mode
+          powerPreference: lowSpec ? "low-power" : "high-performance",
+          alpha: true,
+          stencil: false,
+          preserveDrawingBuffer: false,
+        }}
+        onCreated={({ gl }) => gl.setClearColor(0x000000, 0)}
+        >
+        <ambientLight intensity={lowSpec ? 0.6 : 0.7} />
+        <directionalLight position={[8, 20, 10]} intensity={lowSpec ? 0.8 : 1} />
 
         <World
           darkMode={darkMode}
           enabled={!activeBoard}
           setPrompt={setPrompt}
-          onDefs={setHouseDefs}   // NEW
+          onDefs={setHouseDefs}
+          lowSpec={lowSpec}
         />
         {houseDefs.length > 0 && (
           <HouseInteriors
@@ -1061,7 +1169,7 @@ function MovementControls({
 
 
 /* ---------- World ---------- */
-function World({ darkMode,enabled,setPrompt, onDefs,}: { darkMode: boolean;enabled:boolean;setPrompt: (s: string | null) => void; onDefs: (defs: HouseDef[]) => void;}) {
+function World({ darkMode,enabled,setPrompt, onDefs,lowSpec = false,}: { darkMode: boolean;enabled:boolean;setPrompt: (s: string | null) => void; onDefs: (defs: HouseDef[]) => void;lowSpec?: boolean;}) {
   type FullHouseDef = HouseDef & {
     baseW: number;
     baseH: number;
@@ -1175,8 +1283,8 @@ function World({ darkMode,enabled,setPrompt, onDefs,}: { darkMode: boolean;enabl
       </mesh>
       <Trees darkMode={darkMode} houseDefs={houseDefs}/>
       <Houses darkMode={darkMode} defs={houseDefs} />
-      <ParkourBoxes />
-      <CloudField darkMode={darkMode}/>
+      {!lowSpec && <ParkourBoxes />}
+      {!lowSpec && <CloudField darkMode={darkMode} />}
       <LadderPrompts enabled={enabled} setPrompt={setPrompt} />
       <ArenaWalls />
       {darkMode && houseDefs.map(h => (
