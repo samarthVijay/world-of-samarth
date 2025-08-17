@@ -480,7 +480,7 @@ function WhiteboardModal({
                 fontWeight: 900,
                 fontSize: "1.8rem",
                 letterSpacing: 1,
-                color: darkMode ? "#000000" : "#0f172a", // ← black at night
+                color: darkMode ? "#ffffff" : "#0f172a", // ← black at night
                 ...pixelBorder(2),
               }}
             >
