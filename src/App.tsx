@@ -23,7 +23,7 @@ let GLOBAL_BLOCKERS: AABB[] = [];
 function setBlockers(aabbs: AABB[]) { GLOBAL_BLOCKERS = aabbs; }
 
 // Flat tops you can stand on (box/roof tops only)
-let GLOBAL_WALK_SURFACES: AABB[] = [];
+let GLOBAL_WALK_SURFACES: AABB[] = []; //idk
 function setWalkSurfaces(aabbs: AABB[]) { GLOBAL_WALK_SURFACES = aabbs; }
 
 // Ladders (unchanged)
