@@ -82,6 +82,15 @@ function makeInteriorAABBs(
 
   return [north, southLeft, southRight, west, east];
 }
+function makeDeskAABB(x: number, z: number): AABB {
+  // bounds around the desk (slightly bigger than the mesh)
+  return {
+    min: [x - 1.05, 0, z - 0.52],
+    max: [x + 1.05, 0.86, z + 0.52],
+    tag: "interior-furniture",
+  };
+}
+
 // Parkour layout shared by renderer + colliders
 function getParkourDefs(){
   const defs: {x:number; z:number; w:number; d:number; h:number}[] = [];
@@ -352,15 +361,19 @@ export default function App() {
   }, [activeBoard]);
   useEffect(() => {
     if (!insideHouseId) {
-      // outside: no interior collisions
       setInteriorBlockers([]);
       return;
     }
-    // find the current house and install its interior AABBs
     const h = houseDefs.find(hh => hh.id === insideHouseId);
     if (!h) { setInteriorBlockers([]); return; }
-    setInteriorBlockers(makeInteriorAABBs(h));
+  
+    const desk = makeDeskAABB(h.x - 2.0, h.z - 1.6);
+    setInteriorBlockers([
+      ...makeInteriorAABBs(h),
+      desk,
+    ]);
   }, [insideHouseId, houseDefs]);
+  
   // Global toggle event for the RGB border animation
   useEffect(()=>{
     const onToggle = () => setRgbBorder(v=>!v);
@@ -1153,7 +1166,7 @@ function World({ darkMode,enabled,setPrompt, onDefs,}: { darkMode: boolean;enabl
         <planeGeometry args={[300,300]} />
         <meshBasicMaterial map={groundTex} color={darkMode ? "#bcdcbc" : "#ffffff"} />
       </mesh>
-      <Trees darkMode={darkMode}/>
+      <Trees darkMode={darkMode} houseDefs={houseDefs}/>
       <Houses darkMode={darkMode} defs={houseDefs} />
       <ParkourBoxes />
       <CloudField darkMode={darkMode}/>
@@ -1173,13 +1186,41 @@ function World({ darkMode,enabled,setPrompt, onDefs,}: { darkMode: boolean;enabl
   );
 }
 
-function Trees({ darkMode }: { darkMode: boolean }) {
+function Trees({
+  darkMode,
+  houseDefs,
+}: {
+  darkMode: boolean;
+  houseDefs: { id: string; x: number; z: number }[];
+}) {
+  // house footprint (match House): 8×8 with a little padding
+  const baseW = 8, baseD = 8, pad = 1.2;
+
+  const isInsideAnyHouse = (tx: number, tz: number) => {
+    for (const h of houseDefs) {
+      const withinX = Math.abs(tx - h.x) <= baseW / 2 + pad;
+      const withinZ = Math.abs(tz - h.z) <= baseD / 2 + pad;
+      if (withinX && withinZ) return true;
+    }
+    return false;
+  };
+
   const trees: JSX.Element[] = [];
-  const fixed = [[-3,-6],[6,-3],[-6,5],[4,-8]];
-  fixed.forEach(([x,z],i)=>trees.push(<Tree key={`t-fixed-${i}`} position={[x,0,z]} darkMode={darkMode}/>));
-  const radius = 20; for (let i=0;i<18;i++){ const a=(i/18)*Math.PI*2; trees.push(<Tree key={`t-ring-${i}`} position={[Math.cos(a)*radius,0,Math.sin(a)*radius]} darkMode={darkMode}/>); }
+  const fixed: [number, number][] = [[-3,-6],[6,-3],[-6,5],[4,-8]];
+  const radius = 20;
+  const ring: [number, number][] = Array.from({ length: 18 }, (_, i) => {
+    const a = (i / 18) * Math.PI * 2;
+    return [Math.cos(a) * radius, Math.sin(a) * radius];
+  });
+
+  [...fixed, ...ring].forEach(([x, z], i) => {
+    if (isInsideAnyHouse(x, z)) return; // 👈 skip if inside a house footprint
+    trees.push(<Tree key={`tree-${i}`} position={[x, 0, z]} darkMode={darkMode} />);
+  });
+
   return <group>{trees}</group>;
 }
+
 
 function Tree({ position = [0,0,0] as [number,number,number], darkMode }: { position:[number,number,number], darkMode:boolean }) {
   const trunk = "#8b5a2b";
@@ -1461,14 +1502,15 @@ function InteriorShell({
 }) {
   // reuse your existing brick texture so the inside matches
   const brickTex = useMemo(() => makeBrickTexture(), []);
-
+  const floorTex = useMemo(() => makeFloorWoodTexture(), []);
   // FLOOR (slightly lifted so it doesn’t z-fight with outside ground)
   return (
     <group>
       <mesh position={[x, 0.01, z]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[baseW - 2 * inset, baseD - 2 * inset]} />
-        <meshBasicMaterial color={0x2a2a2a} />
+        <planeGeometry args={[baseW - 0.2, baseD - 0.2]} />
+        <meshBasicMaterial map={floorTex} />
       </mesh>
+
 
       {/* BACK WALL (inside face toward the room) */}
       <mesh position={[x, baseH / 2, z - (baseD / 2 - inset)]} rotation={[0, 0, 0]}>
@@ -1548,20 +1590,38 @@ function HouseInteriors({
           <group key={`interior-${h.id}`}>
             {/* Interior shell only when inside THIS house */}
             {active && <InteriorShell x={h.x} z={h.z} baseW={baseW} baseD={baseD} baseH={baseH} />}
+            {active && (
+              <group>
+                {/* Desk top */}
+                <mesh position={[-2, 0.5, -1.6]}>
+                  <boxGeometry args={[1.5, 0.1, 0.7]} />
+                  <meshStandardMaterial color="#8B5A2B" />
+                </mesh>
+                {/* Desk body */}
+                <mesh position={[-2, 0.25, -1.6]}>
+                  <boxGeometry args={[1.5, 0.5, 0.7]} />
+                  <meshStandardMaterial color="#654321" />
+                </mesh>
 
-            {/* Framed picture (always mounted; visible from inside) */}
-            <group position={[picCenter.x, picCenter.y, picCenter.z]}>
-              {/* frame */}
-              <mesh position={[0, 0, 0.02]}>
-                <boxGeometry args={[2.6, 1.9, 0.08]} />
-                <meshBasicMaterial map={frameTex} />
-              </mesh>
-              {/* image */}
-              <mesh>
-                <planeGeometry args={[2.3, 1.6]} />
-                <meshBasicMaterial map={useLoader(THREE.TextureLoader, asset(ex.img))} />
-              </mesh>
-            </group>
+                {/* Lamp stand */}
+                <mesh position={[-2, 1.2, -1.6]}>
+                  <cylinderGeometry args={[0.05, 0.05, 0.4, 12]} />
+                  <meshStandardMaterial color="gray" />
+                </mesh>
+                {/* Lamp shade */}
+                <mesh position={[-2, 1.5, -1.6]}>
+                  <coneGeometry args={[0.25, 0.3, 16]} />
+                  <meshStandardMaterial emissive="yellow" color="white" />
+                </mesh>
+                {/* Lamp light */}
+                <pointLight position={[-2, 1.5, -1.6]} intensity={0.6} distance={5} />
+              </group>
+            )}
+            <InteriorPicture
+              img={ex.img}
+              frameTex={frameTex}
+              position={[picCenter.x, picCenter.y, picCenter.z]}
+            />
 
             {/* Interact to view image (only when inside this house) */}
             <InteractAtPoint
@@ -1580,6 +1640,27 @@ function HouseInteriors({
   );
 }
 
+function InteriorPicture({
+  img, frameTex, position
+}: {
+  img: string;
+  frameTex: THREE.Texture;
+  position: [number, number, number];
+}) {
+  const tex = useLoader(THREE.TextureLoader, asset(img));
+  return (
+    <group position={position}>
+      <mesh position={[0, 0, 0.02]}>
+        <boxGeometry args={[2.6, 1.9, 0.08]} />
+        <meshBasicMaterial map={frameTex} />
+      </mesh>
+      <mesh>
+        <planeGeometry args={[2.3, 1.6]} />
+        <meshBasicMaterial map={tex} />
+      </mesh>
+    </group>
+  );
+}
 
 /* ---------- Grounded Whiteboards (with poles) ---------- */
 function GroundedWhiteboards({
@@ -1903,6 +1984,41 @@ function ThickSkySign({
 
 
 /* ---------- Texture Helpers ---------- */
+function makeFloorWoodTexture(){
+  const c = document.createElement("canvas");
+  c.width = 1024; c.height = 1024;
+  const ctx = c.getContext("2d")!;
+
+  // Base wood
+  ctx.fillStyle = "#a07443";
+  ctx.fillRect(0, 0, c.width, c.height);
+
+  // Long planks across the X axis
+  const rows = 14;
+  for (let r = 0; r < rows; r++) {
+    const y = (r * c.height) / rows;
+    ctx.fillStyle = r % 2 ? "#8a6236" : "#b8834f";
+    ctx.fillRect(0, y, c.width, c.height / rows - 2);
+
+    // subtle grain lines
+    ctx.strokeStyle = "rgba(0,0,0,0.08)";
+    ctx.lineWidth = 2;
+    for (let k = 0; k < 5; k++) {
+      ctx.beginPath();
+      ctx.moveTo(0, y + (k + 1) * (c.height / rows) / 6);
+      ctx.lineTo(c.width, y + (k + 1) * (c.height / rows) / 6);
+      ctx.stroke();
+    }
+  }
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(2.5, 2.5); // tweak tiling
+  tex.anisotropy = 8;
+  tex.needsUpdate = true;
+  return tex;
+}
+
 function makeCenterBannerTextureThemed(text: string, darkMode: boolean){
   const canvas = document.createElement('canvas'); canvas.width = 2048; canvas.height = 900;
   const ctx = canvas.getContext('2d')!;
