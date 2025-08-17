@@ -864,7 +864,7 @@ function World({ darkMode }: { darkMode: boolean }) {
     <group>
       <mesh rotation={[-Math.PI/2,0,0]} position={[0,0,0]}>
         <planeGeometry args={[300,300]} />
-        <meshBasicMaterial map={groundTex} />
+        <meshBasicMaterial map={groundTex} color={darkMode ? "#bcdcbc" : "#ffffff"} />
       </mesh>
       <Trees darkMode={darkMode}/>
       <Houses />
@@ -1259,14 +1259,14 @@ function makeCenterBannerTextureThemed(text: string, darkMode: boolean){
   return texture;
 }
 
-function makeVoxelGroundTexture(darkMode: boolean){
+function makeVoxelGroundTexture(darkMode = false){
   const size=256; 
   const c=document.createElement("canvas"); 
   c.width=size; c.height=size; 
   const ctx=c.getContext("2d")!;
 
-  const base = darkMode ? "#064e3b" : "#4caf50"; // darker green at night
-  const speckMin = darkMode ? "rgba(5,50,30," : "rgba(20,100,40,";
+  const base = darkMode ? "#1d3b22" : "#4caf50";
+  const speckMin = darkMode ? "rgba(10,40,20," : "rgba(20,100,40,";
   
   ctx.fillStyle=base; 
   ctx.fillRect(0,0,size,size);
