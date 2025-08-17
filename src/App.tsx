@@ -1415,7 +1415,7 @@ function House({
       </mesh>
 
       {/* flat roof slab for walkable top */}
-      <mesh position={[0, ridgeY + 0.2, 0]}>
+      <mesh position={[0, ridgeY + 0.22, 0]}>
         <boxGeometry args={[baseW+0.6, 0.4, baseD+0.6]} />
         <meshBasicMaterial map={plank} />
       </mesh>
@@ -1667,7 +1667,7 @@ function InteriorShell({
       </mesh>
 
       {/* CEILING (optional) */}
-      <mesh position={[x, baseH - 0.02, z]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh position={[x, baseH - 0.03, z]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[baseW - 2 * inset, baseD - 2 * inset]} />
         <meshBasicMaterial color={0x505050} />
       </mesh>
