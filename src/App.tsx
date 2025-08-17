@@ -467,7 +467,7 @@ function MovementControls({
 
   // Ground probe ONLY from WALKABLES (thin, slightly inset caps for tops/roofs)
   function groundAt(x: number, z: number) {
-    const probe = Math.max(0, radius * 0.4); // smaller than collision radius
+    const probe = Math.max(0, radius * 0.5); // smaller than collision radius
     let g = 0; // world ground
     for (const a of GLOBAL_WALKABLES) {
       if (
@@ -575,7 +575,7 @@ function World() {
     const blockers: AABB[] = [];
     const walk: AABB[] = [];
     const climb: AABB[] = [];
-  
+   
     // --- Trees (blockers only) ---
     const fixedTrees: [number, number][] = [[-3,-6],[6,-3],[-6,5],[4,-8]];
     const ringR = 20; const ringN = 18;
@@ -619,12 +619,11 @@ function World() {
       // solid column blocks horizontally
       blockers.push({ min:[b.x-b.w/2, 0, b.z-b.d/2], max:[b.x+b.w/2, b.h, b.z+b.d/2] });
   
-      // add a thin, slightly inset walkable cap
-      const inset = 0.05;
+      const overhang = 0.06; // tweak 0.04–0.1 depending on feel
       walk.push({
-        min: [b.x - b.w/2 + inset, b.h,       b.z - b.d/2 + inset],
-        max: [b.x + b.w/2 - inset, b.h + 0.12, b.z + b.d/2 - inset]
-      });
+      min: [b.x - b.w/2 - overhang, b.h - 0.02,       b.z - b.d/2 - overhang],
+      max: [b.x + b.w/2 + overhang, b.h + 0.20,       b.z + b.d/2 + overhang]
+});
     });
   
     // --- Arena walls: blockers only ---
