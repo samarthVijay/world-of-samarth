@@ -225,6 +225,7 @@ function BackgroundMusic({ src = "audio/bg.mp3", maxVolume = 0.4 }) {
 export default function App() {
   const [activeBoard, setActiveBoard] = useState<string | null>(null);
   const [rgbBorder, setRgbBorder] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
   const topBtnPos = useMemo(()=>getTopButtonPos(),[]);
 
   useEffect(() => {
@@ -240,7 +241,12 @@ export default function App() {
     window.addEventListener('toggle-rgb-border', onToggle as any);
     return () => window.removeEventListener('toggle-rgb-border', onToggle as any);
   },[]);
-
+  // Global toggle for dark mode
+  useEffect(() => {
+    const onToggle = () => setDarkMode(v => !v);
+    window.addEventListener('toggle-dark-mode', onToggle as any);
+    return () => window.removeEventListener('toggle-dark-mode', onToggle as any);
+}, []);
   const closeAndRelock = () => {
     setActiveBoard(null);
     setTimeout(() => window.dispatchEvent(new CustomEvent("relock-pointer")), 0);
@@ -262,8 +268,8 @@ export default function App() {
         <directionalLight position={[8, 20, 10]} intensity={1} />
 
         <World />
-        <GroundedWhiteboards setActiveBoard={setActiveBoard} />
-        <ThickSkySign text="WELCOME TO MY WORLD" rgbActive={rgbBorder} />
+        <GroundedWhiteboards setActiveBoard={setActiveBoard} isDark={darkMode} />
+        <ThickSkySign text="WELCOME TO MY WORLD" rgbActive={rgbBorder} isDark={darkMode} />
 
         <MouseLookControls enabled={!activeBoard} initialYaw={0} initialPitch={-0.1} />
         <MovementControls enabled={!activeBoard} speed={3.5} />
@@ -274,12 +280,13 @@ export default function App() {
           onInteract={()=>{ 
             window.dispatchEvent(new CustomEvent('toggle-rgb-border')); 
             window.dispatchEvent(new CustomEvent('spin-banner'));
+            window.dispatchEvent(new CustomEvent('toggle-dark-mode'));
           }}
         />
       </Canvas>
 
       {activeBoard && (
-        <WhiteboardModal config={WHITEBOARD_CONFIG.find((b) => b.id === activeBoard)!} onClose={closeAndRelock} />
+        <WhiteboardModal config={WHITEBOARD_CONFIG.find((b) => b.id === activeBoard)!} onClose={closeAndRelock} isDark={darkMode} />
       )}
     </div>
   );
@@ -310,61 +317,245 @@ function InteractionManager({ target, enabled, onInteract, range = 2.0 }:{ targe
 }
 
 /* ---------- Whiteboard Modal (Minecraft-themed, scrollable + ESC) ---------- */
-function WhiteboardModal({ config, onClose }: { config: (typeof WHITEBOARD_CONFIG)[0]; onClose: () => void }) {
+function WhiteboardModal({
+  config,
+  onClose,
+  isDark,
+}: {
+  config: (typeof WHITEBOARD_CONFIG)[0];
+  onClose: () => void;
+  isDark: boolean;
+}) {
   useEffect(() => {
-    function onKey(e: KeyboardEvent) { if (e.key === "Escape" || e.key.toLowerCase() === "q") onClose(); }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape" || e.key.toLowerCase() === "q") onClose();
+    }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const pixelBorder = (thick = 6) => ({ boxShadow: `0 0 0 ${thick}px #111827, 0 0 0 ${thick * 2}px #6b7280, 0 0 0 ${thick * 3}px #111827` as string });
-  const pixelTile = { backgroundImage: "repeating-linear-gradient(45deg, #9b6b43 0 16px, #8d5e37 16px 32px, #a7744d 32px 48px)", imageRendering: "pixelated" as const };
-  const grassStrip = { background: "linear-gradient(#16a34a, #16a34a)", height: 24, width: "100%", borderBottom: "6px solid #14532d" } as const;
+  // pixel frame + tile (kept as-is for the Minecraft vibe)
+  const pixelBorder = (thick = 6) => ({
+    boxShadow: `0 0 0 ${thick}px #111827, 0 0 0 ${thick * 2}px #6b7280, 0 0 0 ${thick * 3}px #111827` as string,
+  });
+  const pixelTile = {
+    backgroundImage:
+      "repeating-linear-gradient(45deg, #9b6b43 0 16px, #8d5e37 16px 32px, #a7744d 32px 48px)",
+    imageRendering: "pixelated" as const,
+  };
+  const grassStrip = {
+    background: "linear-gradient(#16a34a, #16a34a)",
+    height: 24,
+    width: "100%",
+    borderBottom: "6px solid #14532d",
+  } as const;
+
+  // 🎨 theme helpers (used throughout)
+  const paper = isDark ? "#0b1220" : "#ffffff";   // main reading surface
+  const ink = isDark ? "#e5e7eb" : "#111827";     // text color
+  const frame = isDark ? "#0b1220" : "#0f172a";   // borders/frames
+  const panel = isDark ? "#131a2a" : "#fefefe";   // lighter panel/heading
 
   return (
-    <div onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }} style={{ position: "fixed", inset: 0, zIndex: 30, background: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", padding: "2rem" }}>
-      <div onMouseDown={(e) => e.stopPropagation()} style={{ position: "relative", width: "92vw", height: "92vh", background: "#d6c2a5", borderRadius: 0, overflow: "hidden", display: "flex", flexDirection: "column", ...pixelBorder(6), ...pixelTile }}>
+    <div
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 30,
+        background: "rgba(0,0,0,0.85)",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        padding: "2rem",
+      }}
+    >
+      <div
+        onMouseDown={(e) => e.stopPropagation()}
+        style={{
+          position: "relative",
+          width: "92vw",
+          height: "92vh",
+          background: isDark ? "#0f172a" : "#d6c2a5", // container backdrop tint
+          borderRadius: 0,
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+          ...pixelBorder(6),
+          ...pixelTile,
+        }}
+      >
         <div style={grassStrip} />
-        <button onClick={onClose} title="ESC also closes" style={{ position: "absolute", top: 16, right: 16, padding: "10px 18px", background: "#22c55e", color: "#0b2e13", border: "4px solid #14532d", cursor: "pointer", fontFamily: "monospace", fontWeight: 900, letterSpacing: 1, textTransform: "uppercase", imageRendering: "pixelated", ...pixelBorder(2) }}>EXIT</button>
 
-        <div style={{ display: "flex", gap: "1.5rem", padding: "1rem", flex: 1, overflow: "hidden" }}>
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-            <div style={{ background: "#fefefe", padding: "0.75rem 1rem", border: "4px solid #0f172a", fontFamily: "monospace", fontWeight: 900, fontSize: "1.8rem", letterSpacing: 1, color: "#0f172a", ...pixelBorder(2) }}>{config.title.toUpperCase()}</div>
-            <div style={{ marginTop: "1rem", background: "#fff", padding: "1rem", border: "4px solid #0f172a", fontFamily: "monospace", color: "#111827", lineHeight: 1.7, flex: 1, overflow: "auto", ...pixelBorder(2) }}>
-  {Array.isArray((config as any).sections) ? (
-    (config as any).sections.map((sec: any, i: number) => (
-      <div key={i} style={{ marginBottom: "1.1rem" }}>
-        <div style={{ fontSize: "1.35rem", fontWeight: 900, marginBottom: 6 }}>
-        {sec.url ? (
-          <a href={sec.url} target="_blank" rel="noopener noreferrer" style={{ color: "#0f172a", textDecoration: "underline" }}>
-            {sec.title}
-          </a>
-        ) : (
-          sec.title
-        )}
-      </div>
-        <div style={{ fontSize: "1.05rem" }} dangerouslySetInnerHTML={{ __html: sec.body }} />
-      </div>
-    ))
-  ) : (
-    <div style={{ fontSize: "1.05rem" }}>No content yet. Add <code>sections</code> to this board to populate it.</div>
-  )}
-  <div style={{ height: 24 }} />
-  <p>Tip: Press <b>ESC</b> or <b>Q</b> to close. Everything here scrolls.</p>
-</div>
+        {/* EXIT button unchanged for now */}
+        <button
+          onClick={onClose}
+          title="ESC also closes"
+          style={{
+            position: "absolute",
+            top: 16,
+            right: 16,
+            padding: "10px 18px",
+            background: "#22c55e",
+            color: "#0b2e13",
+            border: "4px solid #14532d",
+            cursor: "pointer",
+            fontFamily: "monospace",
+            fontWeight: 900,
+            letterSpacing: 1,
+            textTransform: "uppercase",
+            imageRendering: "pixelated",
+            ...pixelBorder(2),
+          }}
+        >
+          EXIT
+        </button>
+
+        <div
+          style={{
+            display: "flex",
+            gap: "1.5rem",
+            padding: "1rem",
+            flex: 1,
+            overflow: "hidden",
+          }}
+        >
+          {/* LEFT: title + scrollable content */}
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              minWidth: 0,
+            }}
+          >
+            {/* Title bar */}
+            <div
+              style={{
+                background: panel,
+                padding: "0.75rem 1rem",
+                border: `4px solid ${frame}`,
+                fontFamily: "monospace",
+                fontWeight: 900,
+                fontSize: "1.8rem",
+                letterSpacing: 1,
+                color: isDark ? "#e5e7eb" : "#0f172a",
+                ...pixelBorder(2),
+              }}
+            >
+              {config.title.toUpperCase()}
+            </div>
+
+            {/* Content panel */}
+            <div
+              style={{
+                marginTop: "1rem",
+                background: paper,
+                padding: "1rem",
+                border: `4px solid ${frame}`,
+                fontFamily: "monospace",
+                color: ink,
+                lineHeight: 1.7,
+                flex: 1,
+                overflow: "auto",
+                ...pixelBorder(2),
+              }}
+            >
+              {Array.isArray((config as any).sections) ? (
+                (config as any).sections.map((sec: any, i: number) => (
+                  <div key={i} style={{ marginBottom: "1.1rem" }}>
+                    <div
+                      style={{
+                        fontSize: "1.35rem",
+                        fontWeight: 900,
+                        marginBottom: 6,
+                        color: ink,
+                      }}
+                    >
+                      {sec.url ? (
+                        <a
+                          href={sec.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            color: isDark ? "#93c5fd" : "#0f172a",
+                            textDecoration: "underline",
+                          }}
+                        >
+                          {sec.title}
+                        </a>
+                      ) : (
+                        sec.title
+                      )}
+                    </div>
+
+                    <div
+                      style={{ fontSize: "1.05rem", color: ink }}
+                      dangerouslySetInnerHTML={{ __html: sec.body }}
+                    />
+                  </div>
+                ))
+              ) : (
+                <div style={{ fontSize: "1.05rem", color: ink }}>
+                  No content yet. Add <code>sections</code> to this board to
+                  populate it.
+                </div>
+              )}
+
+              <div style={{ height: 24 }} />
+              <p style={{ color: ink }}>
+                Tip: Press <b>ESC</b> or <b>Q</b> to close. Everything here
+                scrolls.
+              </p>
+            </div>
           </div>
-          <div style={{ width: 420, display: "flex", flexDirection: "column", alignItems: "stretch", gap: 12, minWidth: 0, overflow: "auto" }}>
-            {((config as any).images ?? ((config as any).image ? [(config as any).image] : [])).map((src: string, idx: number) => (
-              <div key={idx} style={{ width: "100%", border: "4px solid #0f172a", background: "#fff", boxShadow: "0 0 0 6px #111827, 0 0 0 12px #6b7280, 0 0 0 18px #111827" }}>
-                <img src={src} alt={`${config.title} ${idx+1}`} style={{ width: "100%", height: 360, objectFit: "cover", imageRendering: "pixelated" }} />
+
+          {/* RIGHT: image column */}
+          <div
+            style={{
+              width: 420,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "stretch",
+              gap: 12,
+              minWidth: 0,
+              overflow: "auto",
+            }}
+          >
+            {(
+              (config as any).images ??
+              ((config as any).image ? [(config as any).image] : [])
+            ).map((src: string, idx: number) => (
+              <div
+                key={idx}
+                style={{
+                  width: "100%",
+                  border: `4px solid ${frame}`,
+                  background: paper,
+                  boxShadow:
+                    "0 0 0 6px #111827, 0 0 0 12px #6b7280, 0 0 0 18px #111827",
+                }}
+              >
+                <img
+                  src={src}
+                  alt={`${config.title} ${idx + 1}`}
+                  style={{
+                    width: "100%",
+                    height: 360,
+                    objectFit: "cover",
+                    imageRendering: "pixelated",
+                  }}
+                />
               </div>
             ))}
           </div>
-          </div>
         </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
 /* ---------- Crosshair ---------- */
 function Crosshair({ enabled = true }: { enabled?: boolean }) {
   const { camera } = useThree();
@@ -844,22 +1035,22 @@ function ArenaWalls(){
 }
 
 /* ---------- Grounded Whiteboards (with poles) ---------- */
-function GroundedWhiteboards({ setActiveBoard }: { setActiveBoard: (id: string) => void }){
+function GroundedWhiteboards({ setActiveBoard, isDark }: { setActiveBoard: (id: string) => void; isDark:boolean; }){
   const squareSize = 9.5;
   const positions: [number,number,number][] = [[squareSize,BOARD_ALT,0],[0,BOARD_ALT,-squareSize],[-squareSize,BOARD_ALT,0],[0,BOARD_ALT,squareSize]];
   const rotations: [number,number,number][] = [[0,-Math.PI/2,0],[0,0,0],[0,Math.PI/2,0],[0,Math.PI,0]];
   return (
     <group>
       {WHITEBOARD_CONFIG.map((cfg,i)=>(
-        <GroundedBoard key={cfg.id} position={positions[i]} rotation={rotations[i]} config={cfg} onClick={()=>setActiveBoard(cfg.id)} />
+        <GroundedBoard key={cfg.id} position={positions[i]} rotation={rotations[i]} config={cfg} onClick={()=>setActiveBoard(cfg.id)} isDark={isDark} />
       ))}
     </group>
   );
 }
 
-function GroundedBoard({ position, rotation, config, onClick }: { position:[number,number,number]; rotation:[number,number,number]; config:(typeof WHITEBOARD_CONFIG)[0]; onClick:()=>void; }){
+function GroundedBoard({ position, rotation, config, isDark, onClick}: { position:[number,number,number]; rotation:[number,number,number]; config:(typeof WHITEBOARD_CONFIG)[0]; isDark: boolean; onClick:()=>void; }){
   const plank = useMemo(()=>makePlankTexture(),[]);
-  const banner = useMemo(()=>makeCenterBannerTexture(config.title),[config.title]);
+  const banner = useMemo(() => makeCenterBannerTextureThemed(config.title, isDark), [config.title, isDark]);
   const W=7.5, H=3.4, D=0.6; // wood core size
   const poleHeight = position[1]-0.1;
   return (
@@ -889,7 +1080,7 @@ function GroundedBoard({ position, rotation, config, onClick }: { position:[numb
 }
 
 /* ---------- Thick floating sign with RGB border animation ---------- */
-function ThickSkySign({ text, rgbActive }: { text: string; rgbActive: boolean }){
+function ThickSkySign({ text, rgbActive, isDark }: { text: string; rgbActive: boolean; isDark: boolean; }){
   const groupRef = useRef<THREE.Group>(null);
   const texRef = useRef<THREE.CanvasTexture | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -925,10 +1116,20 @@ function ThickSkySign({ text, rgbActive }: { text: string; rgbActive: boolean })
     // background wood + top green band
     ctx.fillStyle="#7b4f28"; ctx.fillRect(0,0,canvas.width,canvas.height);
     for(let i=0;i<500;i++){ ctx.fillStyle=`rgba(0,0,0,${Math.random()*0.2})`; ctx.fillRect(Math.random()*canvas.width, Math.random()*canvas.height, 10,10); }
-    ctx.fillStyle="#2e7d32"; ctx.fillRect(0,0,canvas.width,canvas.height*0.25); ctx.fillStyle="#4caf50"; ctx.fillRect(0,0,canvas.width,canvas.height*0.18);
+     // top band (dark vs light)
+    if (isDark){
+      ctx.fillStyle="#1d3b2a"; ctx.fillRect(0,0,canvas.width,canvas.height*0.25);
+      ctx.fillStyle="#245a38"; ctx.fillRect(0,0,canvas.width,canvas.height*0.18);
+    } else {
+      ctx.fillStyle="#2e7d32"; ctx.fillRect(0,0,canvas.width,canvas.height*0.25);
+      ctx.fillStyle="#4caf50"; ctx.fillRect(0,0,canvas.width,canvas.height*0.18);
+    }
 
-    // static dark frame
-    ctx.lineWidth=40; ctx.strokeStyle="#0f172a"; ctx.strokeRect(0,0,canvas.width,canvas.height);
+    // frame
+    ctx.lineWidth=40;
+    ctx.strokeStyle = isDark ? "#0b1220" : "#0f172a";
+    ctx.strokeRect(0,0,canvas.width,canvas.height);
+
 
     // RGB chasing border when active
     if(rgbActive){
@@ -962,8 +1163,12 @@ function ThickSkySign({ text, rgbActive }: { text: string; rgbActive: boolean })
       }
     }
 
-    // center text
-    ctx.fillStyle="#ffffff"; ctx.font="700 150px 'Press Start 2P', monospace"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(text.toUpperCase(), canvas.width/2, canvas.height/2+10);
+     // text
+    ctx.fillStyle = isDark ? "#e5e7eb" : "#ffffff";
+    ctx.font = "900 200px 'Press Start 2P', monospace";
+    ctx.textAlign="center"; ctx.textBaseline="middle";
+    ctx.fillText(text.toUpperCase(), canvas.width/2, canvas.height/2+10);
+
     texRef.current!.needsUpdate = true;
   };
 
@@ -995,7 +1200,7 @@ function ThickSkySign({ text, rgbActive }: { text: string; rgbActive: boolean })
   });
   
 
-  useEffect(()=>{ drawBanner(phaseRef.current); /* initial draw */ }, [text, rgbActive]);
+  useEffect(()=>{ drawBanner(phaseRef.current); /* initial draw */ }, [text, rgbActive, isDark]);
 
   return (
     <group ref={groupRef} position={[0,TITLE_ALT,0]}>
@@ -1007,14 +1212,39 @@ function ThickSkySign({ text, rgbActive }: { text: string; rgbActive: boolean })
 }
 
 /* ---------- Texture Helpers ---------- */
-function makeCenterBannerTexture(text: string){
-  const canvas=document.createElement("canvas"); canvas.width=2048; canvas.height=900; const ctx=canvas.getContext("2d")!;
-  ctx.fillStyle="#7b4f28"; ctx.fillRect(0,0,canvas.width,canvas.height);
-  for(let i=0;i<500;i++){ ctx.fillStyle=`rgba(0,0,0,${Math.random()*0.2})`; ctx.fillRect(Math.random()*canvas.width, Math.random()*canvas.height, 10,10); }
-  ctx.fillStyle="#2e7d32"; ctx.fillRect(0,0,canvas.width,canvas.height*0.25); ctx.fillStyle="#4caf50"; ctx.fillRect(0,0,canvas.width,canvas.height*0.18);
-  ctx.lineWidth=40; ctx.strokeStyle="#0f172a"; ctx.strokeRect(0,0,canvas.width,canvas.height);
-  ctx.fillStyle="#ffffff"; ctx.font="900 200px 'Press Start 2P', monospace"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(text.toUpperCase(), canvas.width/2, canvas.height/2+10);
-  const texture=new THREE.CanvasTexture(canvas); texture.anisotropy=8; texture.needsUpdate=true; return texture;
+function makeCenterBannerTextureThemed(text: string, isDark: boolean){
+  const canvas = document.createElement('canvas'); canvas.width = 2048; canvas.height = 900;
+  const ctx = canvas.getContext('2d')!;
+
+  // wood base (same)
+  ctx.fillStyle = "#7b4f28"; ctx.fillRect(0,0,canvas.width,canvas.height);
+  for (let i=0;i<500;i++){ ctx.fillStyle = `rgba(0,0,0,${Math.random()*0.2})`;
+    ctx.fillRect(Math.random()*canvas.width, Math.random()*canvas.height, 10,10);
+  }
+
+  // top band — darker in dark mode
+  if (isDark){
+    ctx.fillStyle="#1d3b2a"; ctx.fillRect(0,0,canvas.width,canvas.height*0.25);
+    ctx.fillStyle="#245a38"; ctx.fillRect(0,0,canvas.width,canvas.height*0.18);
+  } else {
+    ctx.fillStyle="#2e7d32"; ctx.fillRect(0,0,canvas.width,canvas.height*0.25);
+    ctx.fillStyle="#4caf50"; ctx.fillRect(0,0,canvas.width,canvas.height*0.18);
+  }
+
+  // frame
+  ctx.lineWidth = 40;
+  ctx.strokeStyle = isDark ? "#0b1220" : "#0f172a";
+  ctx.strokeRect(0,0,canvas.width,canvas.height);
+
+  // text
+  ctx.fillStyle = isDark ? "#e5e7eb" : "#ffffff";
+  ctx.font = "900 200px 'Press Start 2P', monospace";
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText(text.toUpperCase(), canvas.width/2, canvas.height/2+10);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.anisotropy = 8; texture.needsUpdate = true;
+  return texture;
 }
 
 function makeVoxelGroundTexture(){
