@@ -82,13 +82,20 @@ function makeInteriorAABBs(
 
   return [north, southLeft, southRight, west, east];
 }
-function makeDeskAABB(x: number, z: number): AABB {
-  // bounds around the desk (slightly bigger than the mesh)
-  return {
-    min: [x - 1.05, 0, z - 0.52],
-    max: [x + 1.05, 0.86, z + 0.52],
-    tag: "interior-furniture",
-  };
+// ---- furniture layout relative to house center (x,z) ----
+const DESK = { cx: -2.0, cz: -1.6, w: 1.5, d: 0.7, h: 0.6 }; // top≈0.6m
+const BED  = { cx:  2.2, cz: -1.6, w: 2.0, d: 1.0, h: 0.6 }; // top≈0.6m
+
+function makeDeskAABB(hx: number, hz: number): AABB {
+  const { cx, cz, w, d, h } = DESK;
+  const x = hx + cx, z = hz + cz;
+  return { min: [x - w/2, 0, z - d/2], max: [x + w/2, h, z + d/2], tag: "interior-furniture" };
+}
+
+function makeBedAABB(hx: number, hz: number): AABB {
+  const { cx, cz, w, d, h } = BED;
+  const x = hx + cx, z = hz + cz;
+  return { min: [x - w/2, 0, z - d/2], max: [x + w/2, h, z + d/2], tag: "interior-furniture" };
 }
 
 // Parkour layout shared by renderer + colliders
@@ -103,7 +110,7 @@ function getParkourDefs(){
     const a = i * angleStep;
     defs.push({ x: Math.cos(a)*R, z: Math.sin(a)*R, w, d, h });
     h += 0.35; // rise per step
-  }
+  } //?? how is everything up to date
   return defs;
 }
 
@@ -366,11 +373,11 @@ export default function App() {
     }
     const h = houseDefs.find(hh => hh.id === insideHouseId);
     if (!h) { setInteriorBlockers([]); return; }
-  
-    const desk = makeDeskAABB(h.x - 2.0, h.z - 1.6);
+
     setInteriorBlockers([
       ...makeInteriorAABBs(h),
-      desk,
+        makeBedAABB(h.x, h.z),
+        makeDeskAABB(h.x, h.z)
     ]);
   }, [insideHouseId, houseDefs]);
   
@@ -1552,38 +1559,60 @@ function InteriorShell({
     </group>
   );
 }
-function DeskAndLamp({ x, z, baseW = 8, baseD = 8 }: { x: number; z: number; baseW?: number; baseD?: number }) {
+function DeskAndLamp({ x, z }: { x: number; z: number }) {
   return (
     <group position={[x, 0, z]}>
-      {/* --- Wooden floor --- */}
-      <mesh position={[0, -0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[baseW, baseD]} />
-        <meshStandardMaterial color="#a9744f" />
+      {/* ---- Desk: body + top ---- */}
+      {/* body (0.5 high) => top at 0.5 */}
+      <mesh position={[DESK.cx, 0.25, DESK.cz]}>
+        <boxGeometry args={[DESK.w, 0.5, DESK.d]} />
+        <meshBasicMaterial color="#654321" />
+      </mesh>
+      {/* top slab (0.1 high), sits on body => center at 0.55 */}
+      <mesh position={[DESK.cx, 0.55, DESK.cz]}>
+        <boxGeometry args={[DESK.w, 0.1, DESK.d]} />
+        <meshBasicMaterial color="#8B5A2B" />
       </mesh>
 
-      {/* --- Desk --- */}
-      <mesh position={[-2, 0.5, -1.6]}>
-        <boxGeometry args={[1.5, 0.1, 0.7]} />
-        <meshStandardMaterial color="#8B5A2B" />
-      </mesh>
-      <mesh position={[-2, 0.25, -1.6]}>
-        <boxGeometry args={[1.5, 0.5, 0.7]} />
-        <meshStandardMaterial color="#654321" />
-      </mesh>
-
-      {/* --- Lamp --- */}
-      <mesh position={[-2, 1.2, -1.6]}>
+      {/* ---- Lamp (grounded on desk top) ---- */}
+      {/* stand: 0.4 high => center 0.55 + 0.2 = 0.75 */}
+      <mesh position={[DESK.cx, 0.75, DESK.cz]}>
         <cylinderGeometry args={[0.05, 0.05, 0.4, 12]} />
-        <meshStandardMaterial color="gray" />
+        <meshBasicMaterial color="gray" />
       </mesh>
-      <mesh position={[-2, 1.5, -1.6]}>
+      {/* shade: 0.3 high; base sits at stand top (0.95) => center 1.10 */}
+      <mesh position={[DESK.cx, 1.10, DESK.cz]}>
         <coneGeometry args={[0.25, 0.3, 16]} />
         <meshStandardMaterial emissive="yellow" color="white" />
       </mesh>
-      <pointLight position={[-2, 1.5, -1.6]} intensity={0.6} distance={5} />
+      <pointLight position={[DESK.cx, 1.10, DESK.cz]} intensity={0.6} distance={5} />
+
+      {/* ---- Bed along right wall ---- */}
+      {/* frame: 0.4 high => center 0.2 */}
+      <mesh position={[BED.cx, 0.2, BED.cz]}>
+        <boxGeometry args={[BED.w, 0.4, BED.d]} />
+        <meshBasicMaterial color="#5b3b2a" />
+      </mesh>
+      {/* mattress: 0.2 high; sits on frame => center 0.5 */}
+      <mesh position={[BED.cx, 0.5, BED.cz]}>
+        <boxGeometry args={[BED.w * 0.98, 0.2, BED.d * 0.96]} />
+        <meshBasicMaterial color="#dfe7f1" />
+      </mesh>
+      {/* pillow */}
+      <mesh position={[BED.cx + BED.w/2 - 0.35, 0.62, BED.cz]}>
+        <boxGeometry args={[0.6, 0.12, 0.35]} />
+        <meshBasicMaterial color="#ffffff" />
+      </mesh>
+      {/* blanket */}
+      <mesh position={[BED.cx - 0.2, 0.58, BED.cz]}>
+        <boxGeometry args={[BED.w*0.7, 0.06, BED.d*0.95]} />
+        <meshBasicMaterial color="#3b82f6" />
+      </mesh>
     </group>
   );
 }
+
+
 
 function HouseInteriors({
   enabled,
@@ -1638,7 +1667,7 @@ function HouseInteriors({
               onTrigger={() => setExhibit({ img: asset(ex.img), caption: ex.caption })}
               setPrompt={setPrompt}
             />
-            {active && <DeskAndLamp x={h.x} z={h.z} baseW={baseW} baseD={baseD} />}
+            {active && <DeskAndLamp x={h.x} z={h.z} />}
           </group>
         );
       })}
