@@ -40,6 +40,48 @@ function setWalkSurfaces(aabbs: AABB[]) { GLOBAL_WALK_SURFACES = aabbs; }
 let GLOBAL_CLIMB_VOLUMES: AABB[] = [];
 function setClimbVolumes(vols: AABB[]) { GLOBAL_CLIMB_VOLUMES = vols; }
 
+let GLOBAL_INTERIOR_BLOCKERS: AABB[] = [];
+function setInteriorBlockers(aabbs: AABB[]) { GLOBAL_INTERIOR_BLOCKERS = aabbs; }
+function makeInteriorAABBs(
+  house: { id: string; x: number; z: number },
+  baseW = 8, baseD = 8, baseH = 4.4,
+  thickness = 0.18, inset = 0.10
+): AABB[] {
+  const { id, x, z } = house;
+
+  // North wall (back)
+  const north: AABB = {
+    min: [x - baseW/2 + inset, 0,        z - baseD/2 - thickness/2 + inset],
+    max: [x + baseW/2 - inset, baseH,    z - baseD/2 + thickness/2 + inset],
+    tag: `interior-${id}`,
+  };
+  // South wall (front) — leave a ~2.2m wide door gap centered
+  const gap = 2.2;
+  const southLeft: AABB = {
+    min: [x - baseW/2 + inset, 0,        z + baseD/2 - thickness/2 - inset],
+    max: [x - gap/2 - 0.05,    baseH,    z + baseD/2 + thickness/2 - inset],
+    tag: `interior-${id}`,
+  };
+  const southRight: AABB = {
+    min: [x + gap/2 + 0.05,    0,        z + baseD/2 - thickness/2 - inset],
+    max: [x + baseW/2 - inset, baseH,    z + baseD/2 + thickness/2 - inset],
+    tag: `interior-${id}`,
+  };
+  // West wall (left)
+  const west: AABB = {
+    min: [x - baseW/2 - thickness/2 + inset, 0,     z - baseD/2 + inset],
+    max: [x - baseW/2 + thickness/2 + inset, baseH, z + baseD/2 - inset],
+    tag: `interior-${id}`,
+  };
+  // East wall (right)
+  const east: AABB = {
+    min: [x + baseW/2 - thickness/2 - inset, 0,     z - baseD/2 + inset],
+    max: [x + baseW/2 + thickness/2 - inset, baseH, z + baseD/2 - inset],
+    tag: `interior-${id}`,
+  };
+
+  return [north, southLeft, southRight, west, east];
+}
 // Parkour layout shared by renderer + colliders
 function getParkourDefs(){
   const defs: {x:number; z:number; w:number; d:number; h:number}[] = [];
@@ -308,7 +350,17 @@ export default function App() {
     document.body.style.cursor = anyModal ? "auto" : "none";
     return () => { if (!anyModal) document.body.style.cursor = "none"; };
   }, [activeBoard]);
-
+  useEffect(() => {
+    if (!insideHouseId) {
+      // outside: no interior collisions
+      setInteriorBlockers([]);
+      return;
+    }
+    // find the current house and install its interior AABBs
+    const h = houseDefs.find(hh => hh.id === insideHouseId);
+    if (!h) { setInteriorBlockers([]); return; }
+    setInteriorBlockers(makeInteriorAABBs(h));
+  }, [insideHouseId, houseDefs]);
   // Global toggle event for the RGB border animation
   useEffect(()=>{
     const onToggle = () => setRgbBorder(v=>!v);
@@ -835,7 +887,8 @@ function MovementControls({
   function collidesXYAt(x: number, z: number) {
     const yMin = (camera.position.y - baseEye) + 0.02; // feet
     const yMax = camera.position.y - 0.02;             // head
-    for (const a of GLOBAL_BLOCKERS) {
+    const all = [...GLOBAL_BLOCKERS, ...GLOBAL_INTERIOR_BLOCKERS];
+    for (const a of all) {
       if (insideHouseId && a.tag === insideHouseId) continue;
       if (
         x >= a.min[0] - radius && x <= a.max[0] + radius &&
