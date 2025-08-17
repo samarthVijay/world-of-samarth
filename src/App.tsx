@@ -1396,6 +1396,68 @@ function ArenaWalls(){
     </group>
   );
 }
+function InteriorShell({
+  x, z,
+  baseW = 8,
+  baseD = 8,
+  baseH = 4.4,
+  inset = 0.08,
+}: {
+  x: number; z: number;
+  baseW?: number; baseD?: number; baseH?: number; inset?: number;
+}) {
+  // reuse your existing brick texture so the inside matches
+  const brickTex = useMemo(() => makeBrickTexture(), []);
+
+  // FLOOR (slightly lifted so it doesn’t z-fight with outside ground)
+  return (
+    <group>
+      <mesh position={[x, 0.01, z]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[baseW - 2 * inset, baseD - 2 * inset]} />
+        <meshBasicMaterial color={0x2a2a2a} />
+      </mesh>
+
+      {/* BACK WALL (inside face toward the room) */}
+      <mesh position={[x, baseH / 2, z - (baseD / 2 - inset)]} rotation={[0, 0, 0]}>
+        <planeGeometry args={[baseW - 2 * inset, baseH]} />
+        <meshBasicMaterial map={brickTex} side={THREE.FrontSide} />
+      </mesh>
+
+      {/* FRONT WALL — leave a "door" hole (~2.2 m wide) by composing two planes */}
+      <group position={[x, baseH / 2, z + (baseD / 2 - inset)]} rotation={[0, Math.PI, 0]}>
+        {/* left chunk */}
+        <mesh position={[-(baseW/2 - inset)/2 - 1.1, 0, 0]}>
+          <planeGeometry args={[ (baseW - 2*inset) - 2.2, baseH ]} />
+          <meshBasicMaterial map={brickTex} />
+        </mesh>
+        {/* right chunk */}
+        <mesh position={[ (baseW/2 - inset)/2 + 1.1, 0, 0]}>
+          <planeGeometry args={[ (baseW - 2*inset) - 2.2, baseH ]} />
+          <meshBasicMaterial map={brickTex} />
+        </mesh>
+      </group>
+
+      {/* LEFT WALL */}
+      <mesh position={[x - (baseW / 2 - inset), baseH / 2, z]} rotation={[0, Math.PI / 2, 0]}>
+        <planeGeometry args={[baseD - 2 * inset, baseH]} />
+        <meshBasicMaterial map={brickTex} />
+      </mesh>
+
+      {/* RIGHT WALL */}
+      <mesh position={[x + (baseW / 2 - inset), baseH / 2, z]} rotation={[0, -Math.PI / 2, 0]}>
+        <planeGeometry args={[baseD - 2 * inset, baseH]} />
+        <meshBasicMaterial map={brickTex} />
+      </mesh>
+
+      {/* CEILING (optional) */}
+      <mesh position={[x, baseH - 0.02, z]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[baseW - 2 * inset, baseD - 2 * inset]} />
+        <meshBasicMaterial color={0x505050} />
+      </mesh>
+    </group>
+  );
+}
+
 function HouseInteriors({
   enabled,
   houseDefs,
@@ -1409,71 +1471,53 @@ function HouseInteriors({
   setExhibit: (v: { img: string; caption: string } | null) => void;
   insideId: string | null;
 }) {
-  // tiny child that can legitimately use a hook
-  function InteriorPicture({
-    img,
-    frameTex,
-    position,
-  }: {
-    img: string;
-    frameTex: THREE.Texture;
-    position: [number, number, number];
-  }) {
-    const tex = useLoader(THREE.TextureLoader, asset(img));
-    return (
-      <group position={position}>
-        {/* wood frame */}
-        <mesh position={[0, 0, 0.02]}>
-          <boxGeometry args={[2.6, 1.9, 0.08]} />
-          <meshBasicMaterial map={frameTex} />
-        </mesh>
-        {/* image */}
-        <mesh>
-          <planeGeometry args={[2.3, 1.6]} />
-          <meshBasicMaterial map={tex} />
-        </mesh>
-      </group>
-    );
-  }
-
-  // one exhibit per house (customize as you like)
-  const exhibits = [
-    { id: "house-0", img: "images/imageme1.jpeg",     caption: "Me, IRL." },
-    { id: "house-1", img: "images/imagejetbot1.jpeg",  caption: "Jetbot build." },
-    { id: "house-2", img: "images/imagelidar1.jpeg",   caption: "LIDAR project." },
-    { id: "house-3", img: "images/imagesnake1.jpg",    caption: "C++ Snake." },
-  ];
-
   const frameTex = useMemo(() => makePlankTexture(), []);
+  const baseW = 8, baseD = 8, baseH = 4.4;
+
+  const exhibits = [
+    { id: "house-0", img: "images/imageme1.jpeg",    caption: "Me, IRL." },
+    { id: "house-1", img: "images/imagejetbot1.jpeg", caption: "Jetbot build." },
+    { id: "house-2", img: "images/imagelidar1.jpeg",  caption: "LIDAR project." },
+    { id: "house-3", img: "images/imagesnake1.jpg",   caption: "C++ Snake." },
+  ];
 
   return (
     <group>
       {houseDefs.map((h, i) => {
+        const active = insideId === h.id;                 // only draw interior of current house
         const ex = exhibits[i % exhibits.length];
 
-        // back wall position (slightly above eye level)
-        const pos = new THREE.Vector3(h.x, 2.2, h.z - 3.6);
-        const promptPos = pos.clone(); 
-        promptPos.z += 0.8;
+        // picture on the BACK wall, slightly off the wall
+        const picCenter = new THREE.Vector3(h.x, 2.0, h.z - (baseD / 2 - 0.10));
+        const picLookPos = picCenter.clone().add(new THREE.Vector3(0, 0, 0.8));
 
         return (
-          <group key={`int-${h.id}`}>
-            <InteriorPicture
-              img={ex.img}
-              frameTex={frameTex}
-              position={pos.toArray() as [number, number, number]}
-            />
+          <group key={`interior-${h.id}`}>
+            {/* Interior shell only when inside THIS house */}
+            {active && <InteriorShell x={h.x} z={h.z} baseW={baseW} baseD={baseD} baseH={baseH} />}
 
-            {/* "Press E to view" prompt/trigger — only when you're inside THIS house */}
+            {/* Framed picture (always mounted; visible from inside) */}
+            <group position={[picCenter.x, picCenter.y, picCenter.z]}>
+              {/* frame */}
+              <mesh position={[0, 0, 0.02]}>
+                <boxGeometry args={[2.6, 1.9, 0.08]} />
+                <meshBasicMaterial map={frameTex} />
+              </mesh>
+              {/* image */}
+              <mesh>
+                <planeGeometry args={[2.3, 1.6]} />
+                <meshBasicMaterial map={useLoader(THREE.TextureLoader, asset(ex.img))} />
+              </mesh>
+            </group>
+
+            {/* Interact to view image (only when inside this house) */}
             <InteractAtPoint
-              target={promptPos}
-              enabled={enabled && insideId === h.id}
+              target={picLookPos}
+              enabled={enabled && active}
               keyName="e"
-              range={2.0}
+              range={2.2}
               label={"Press E to view"}
-              onTrigger={() =>
-                setExhibit({ img: asset(ex.img), caption: ex.caption })
-              }
+              onTrigger={() => setExhibit({ img: asset(ex.img), caption: ex.caption })}
               setPrompt={setPrompt}
             />
           </group>
