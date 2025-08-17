@@ -403,7 +403,7 @@ export default function App() {
           setPrompt={setPrompt}
         />
         {houseDefs.length > 0 && (
-          <DoorPrompts
+          <DoorPrompts //test comment
             enabled={!activeBoard}
             houseDefs={(globalThis as any).__HOUSE_DEFS__}
             setPrompt={setPrompt}
