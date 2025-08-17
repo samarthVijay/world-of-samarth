@@ -13,6 +13,8 @@ const EDGE_PAD = 0.12;         // how much to "inflate" walk AABBs in X/Z
 const PROBE_FACTOR = 0.55;     // enlarges the feet probe (radius * factor)
 const GROUND_SNAP = 0.25;      // snap-to-ground if this close while falling
 const MAX_STEP = 0.45;         // optional: allow tiny step-down without falling
+const MAX_UP_SNAP = 0.5;      // never snap UP to a surface >50cm above your feet (unless ladder grace)
+const ROOF_GRACE_MS = 1200;   // how long after ladder toggle you’re allowed to snap onto the roof
 const asset = (p: string) => `${import.meta.env.BASE_URL}${p.replace(/^\/+/, '')}`;
 
 // --- Simple collision system (AABBs) ---
@@ -422,6 +424,7 @@ function MovementControls({
   const climbVolRef = useRef<AABB | null>(null);
 
   // Keys + ladder toggle (F)
+  const lastLadderToggle = useRef(0); 
   useEffect(() => {
     function down(e: KeyboardEvent) {
       const k = e.key.toLowerCase();
@@ -431,6 +434,7 @@ function MovementControls({
       if (k === "f" && climbVolRef.current) {
         // toggle climbing if inside ladder volume
         climbing.current = !climbing.current;
+        lastLadderToggle.current = performance.now();
         const a = climbVolRef.current;
         const cx = (a.min[0] + a.max[0]) / 2;
         const cz = (a.min[2] + a.max[2]) / 2;
@@ -469,27 +473,33 @@ function MovementControls({
     }
     return false;
   }
-
-  // Ground probe ONLY from WALKABLES (thin, slightly inset caps for tops/roofs)
-  function groundAt(x: number, z: number) {
-    const walkList = GLOBAL_WALK_SURFACES
+  function groundAtLimited(
+    x: number,
+    z: number,
+    footY: number,
+    allowHighSnap: boolean
+  ) {
+    const walkList = GLOBAL_WALK_SURFACES;
     const probe = Math.max(0, radius * PROBE_FACTOR);
-    let g = 0; // world base
-
+    let best = 0;
+  
     for (const a of walkList) {
-      // Inflate in X/Z to close seams
       const minX = a.min[0] - EDGE_PAD - probe;
       const maxX = a.max[0] + EDGE_PAD + probe;
       const minZ = a.min[2] - EDGE_PAD - probe;
       const maxZ = a.max[2] + EDGE_PAD + probe;
-
       if (x >= minX && x <= maxX && z >= minZ && z <= maxZ) {
-        // top of the slab
-        g = Math.max(g, a.max[1]);
+        const top = a.max[1];
+        // Only consider tops not far ABOVE current feet unless grace is active
+        if (allowHighSnap || top <= footY + MAX_UP_SNAP) {
+          best = Math.max(best, top);
+        }
       }
     }
-    return g;
+    return best;
   }
+  
+  // Ground probe ONLY from WALKABLES (thin, slightly inset caps for tops/roofs)
 
   function inClimbVol(x: number, z: number): AABB | null {
     for (const a of GLOBAL_CLIMB_VOLUMES) {
@@ -549,7 +559,12 @@ function MovementControls({
       camera.position.y = Math.max(minY, Math.min(maxY, y));
       vY.current = 0;
     } else {
-      const gY = groundAt(camera.position.x, camera.position.z);
+      const now = performance.now();
+      const allowHighSnap = (now - lastLadderToggle.current) < ROOF_GRACE_MS;
+
+      // Compute ground under current X/Z with limited upward snap
+      const footY = camera.position.y - baseEye;
+      const gY = groundAtLimited(camera.position.x, camera.position.z, footY, allowHighSnap);
       const minY = gY + baseEye;
     
       // gravity
