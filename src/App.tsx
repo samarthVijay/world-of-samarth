@@ -552,6 +552,7 @@ export default function App() {
           setPrompt={setPrompt}
           onDefs={setHouseDefs}
           lowSpec={lowSpec}
+          insideHouseId={insideHouseId}
         />
         
         <GroundedWhiteboards setActiveBoard={setActiveBoard} darkMode={darkMode} setPrompt={setPrompt}/>
@@ -1168,7 +1169,7 @@ function MovementControls({
 
 
 /* ---------- World ---------- */
-function World({ darkMode,enabled,setPrompt, onDefs,lowSpec = false,}: { darkMode: boolean;enabled:boolean;setPrompt: (s: string | null) => void; onDefs: (defs: HouseDef[]) => void;lowSpec?: boolean;}) {
+function World({ darkMode,enabled,setPrompt, onDefs,lowSpec = false,insideHouseId,}: { darkMode: boolean;enabled:boolean;setPrompt: (s: string | null) => void; onDefs: (defs: HouseDef[]) => void;lowSpec?: boolean; insideHouseId: string | null;}) {
   type FullHouseDef = HouseDef & {
     baseW: number;
     baseH: number;
@@ -1281,7 +1282,7 @@ function World({ darkMode,enabled,setPrompt, onDefs,lowSpec = false,}: { darkMod
         <meshBasicMaterial map={groundTex} color={darkMode ? "#bcdcbc" : "#ffffff"} />
       </mesh>
       <Trees darkMode={darkMode} houseDefs={houseDefs}/>
-      <Houses darkMode={darkMode} defs={houseDefs} />
+      <Houses darkMode={darkMode} defs={houseDefs} insideId={insideHouseId}/>
       {!lowSpec && <ParkourBoxes />}
       {!lowSpec && <CloudField darkMode={darkMode} />}
       <LadderPrompts enabled={enabled} setPrompt={setPrompt} />
@@ -1363,14 +1364,17 @@ function Tree({ position = [0,0,0] as [number,number,number], darkMode }: { posi
 function Houses({
   darkMode,
   defs,
+  insideId,
+
 }: {
   darkMode: boolean;
   defs: { id: string; x: number; z: number }[];
+  insideId: string|null;
 }) {
   return (
     <group>
       {defs.map((h) => (
-        <House key={h.id} position={[h.x, 0, h.z]} darkMode={darkMode} />
+        <House key={h.id} position={[h.x, 0, h.z]} darkMode={darkMode} insideActive={insideId===h.id}/>
       ))}
     </group>
   );
@@ -1378,9 +1382,11 @@ function Houses({
 function House({
   position = [0,0,0] as [number,number,number],
   darkMode,
+  insideActive = false,
 }: {
   position: [number,number,number];
   darkMode: boolean;
+  insideActive?: boolean;
 }) {
   const plank = useMemo(()=>makePlankTexture(),[]);
   const brick = useMemo(()=>makeBrickTexture(),[]);
@@ -1395,7 +1401,10 @@ function House({
         <boxGeometry args={[baseW,baseH,baseD]} />
         <meshBasicMaterial map={brick} />
       </mesh>
-
+      <mesh position={[0,centerY,0]}>
+        <boxGeometry args={[baseW,baseH,baseD]} />
+        <meshBasicMaterial map={brick} side={insideActive ? THREE.BackSide : THREE.FrontSide} />
+      </mesh>
       {/* door + window (window glows at night) */}
       <mesh position={[0,1.2,baseD/2+0.01]}>
         <planeGeometry args={[1.8,2.4]} />
@@ -1759,7 +1768,7 @@ function HouseInteriors({
         const ex = exhibits[i % exhibits.length];
 
         // picture on the BACK wall, slightly off the wall
-        const picCenter = new THREE.Vector3(h.x, 2.2, h.z - (baseD / 2 - 0.10));
+        const picCenter = new THREE.Vector3(h.x, 2.2, h.z - (baseD / 2 - 0.30));
         const picLookPos = picCenter.clone().add(new THREE.Vector3(0, 0, 0.8));
 
         return (
@@ -1803,21 +1812,30 @@ function InteriorPicture({
     <group position={position}>
       {/* optional: small light so you can *see* it clearly in dark rooms */}
       <pointLight position={[0, 0, 0.2]} intensity={0.6} distance={3} />
-
+      <mesh position={[0, 0, 0.32]}>
+        <planeGeometry args={[2.3, 1.6]} />
+        <meshBasicMaterial
+          map={tex}
+          side={THREE.DoubleSide}
+          polygonOffset
+          polygonOffsetFactor={-1}
+          polygonOffsetUnits={-1}
+        />
+      </mesh>
       {/* wooden frame */}
-      <mesh position={[0, 0, 0.12]}>
+      <mesh position={[0, 0, 0.28]}>
         <boxGeometry args={[2.8, 2.0, 0.08]} />
         <meshBasicMaterial map={frameTex} side={THREE.DoubleSide} />
       </mesh>
 
       {/* inner white border */}
-      <mesh position={[0, 0, 0.13]}>
+      <mesh position={[0, 0, 0.30]}>
         <planeGeometry args={[2.5, 1.8]} />
         <meshBasicMaterial color="#f3f4f6" side={THREE.DoubleSide} />
       </mesh>
 
       {/* actual image */}
-      <mesh position={[0, 0, 0.14]}>
+      <mesh position={[0, 0, 0.32]}>
         <planeGeometry args={[2.3, 1.6]} />
         <meshBasicMaterial map={tex} side={THREE.DoubleSide} />
       </mesh>
