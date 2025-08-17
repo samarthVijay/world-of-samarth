@@ -15,6 +15,7 @@ const GROUND_SNAP = 0.25;      // snap-to-ground if this close while falling
 const MAX_STEP = 0.45;         // optional: allow tiny step-down without falling
 const MAX_UP_SNAP = 0.5;      // never snap UP to a surface >50cm above your feet (unless ladder grace)
 const ROOF_GRACE_MS = 1200;   // how long after ladder toggle you’re allowed to snap onto the roof
+
 const asset = (p: string) => `${import.meta.env.BASE_URL}${p.replace(/^\/+/, '')}`;
 
 // --- Simple collision system (AABBs) ---
@@ -227,6 +228,9 @@ export default function App() {
   const [rgbBorder, setRgbBorder] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const topBtnPos = useMemo(()=>getTopButtonPos(),[]);
+  const skyGradient = darkMode
+  ? "linear-gradient(#0b1220, #1a237e)"   // night: deep navy → indigo
+  : "linear-gradient(#87ceeb, #1e90ff)"; // day: light blue → sky blue
 
   useEffect(() => {
     const anyModal = !!activeBoard;
@@ -253,9 +257,10 @@ export default function App() {
   };
 
   return (
+    
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden" }}>
       {/* Sky gradient */}
-      <div style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", background: "linear-gradient(#7ec8ff 0%, #9ed2ff 40%, #bfe0ff 60%, #e8f5ff 100%)" }} />
+      <div style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", background: skyGradient }} />
 
       {!activeBoard && (
         <div style={{ position: "fixed", top: 10, left: "50%", transform: "translateX(-50%)", background: "rgba(0,0,0,0.5)", color: "#fff", padding: "8px 12px", borderRadius: 10, zIndex: 10, fontSize: 14 }}>
