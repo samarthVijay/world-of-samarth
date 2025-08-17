@@ -272,9 +272,9 @@ export default function App() {
         <ambientLight intensity={0.7} />
         <directionalLight position={[8, 20, 10]} intensity={1} />
 
-        <World />
-        <GroundedWhiteboards setActiveBoard={setActiveBoard} isDark={darkMode} />
-        <ThickSkySign text="WELCOME TO MY WORLD" rgbActive={rgbBorder} isDark={darkMode} />
+        <World darkMode={darkMode} />
+        <GroundedWhiteboards setActiveBoard={setActiveBoard} darkMode={darkMode} />
+        <ThickSkySign text="WELCOME TO MY WORLD" rgbActive={rgbBorder} darkMode={darkMode} />
 
         <MouseLookControls enabled={!activeBoard} initialYaw={0} initialPitch={-0.1} />
         <MovementControls enabled={!activeBoard} speed={3.5} />
@@ -291,7 +291,7 @@ export default function App() {
       </Canvas>
 
       {activeBoard && (
-        <WhiteboardModal config={WHITEBOARD_CONFIG.find((b) => b.id === activeBoard)!} onClose={closeAndRelock} isDark={darkMode} />
+        <WhiteboardModal config={WHITEBOARD_CONFIG.find((b) => b.id === activeBoard)!} onClose={closeAndRelock} darkMode={darkMode} />
       )}
     </div>
   );
@@ -325,11 +325,11 @@ function InteractionManager({ target, enabled, onInteract, range = 2.0 }:{ targe
 function WhiteboardModal({
   config,
   onClose,
-  isDark,
+  darkMode,
 }: {
   config: (typeof WHITEBOARD_CONFIG)[0];
   onClose: () => void;
-  isDark: boolean;
+  darkMode: boolean;
 }) {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -339,7 +339,7 @@ function WhiteboardModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  // pixel frame + tile (kept as-is for the Minecraft vibe)
+  // pixel frame + tile (kept as-is)
   const pixelBorder = (thick = 6) => ({
     boxShadow: `0 0 0 ${thick}px #111827, 0 0 0 ${thick * 2}px #6b7280, 0 0 0 ${thick * 3}px #111827` as string,
   });
@@ -355,17 +355,15 @@ function WhiteboardModal({
     borderBottom: "6px solid #14532d",
   } as const;
 
-  // 🎨 theme helpers (used throughout)
-  const paper = isDark ? "#0b1220" : "#ffffff";   // main reading surface
-  const ink = isDark ? "#e5e7eb" : "#111827";     // text color
-  const frame = isDark ? "#0b1220" : "#0f172a";   // borders/frames
-  const panel = isDark ? "#131a2a" : "#fefefe";   // lighter panel/heading
+  // theme helpers
+  const paper = darkMode ? "#0b1220" : "#ffffff";   // main reading surface
+  const ink   = darkMode ? "#e5e7eb" : "#111827";   // body text color
+  const frame = darkMode ? "#0b1220" : "#0f172a";   // borders/frames
+  const panel = darkMode ? "#131a2a" : "#fefefe";   // title panel bg
 
   return (
     <div
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
       style={{
         position: "fixed",
         inset: 0,
@@ -383,7 +381,7 @@ function WhiteboardModal({
           position: "relative",
           width: "92vw",
           height: "92vh",
-          background: isDark ? "#0f172a" : "#d6c2a5", // container backdrop tint
+          background: darkMode ? "#0f172a" : "#d6c2a5",
           borderRadius: 0,
           overflow: "hidden",
           display: "flex",
@@ -394,7 +392,7 @@ function WhiteboardModal({
       >
         <div style={grassStrip} />
 
-        {/* EXIT button unchanged for now */}
+        {/* EXIT */}
         <button
           onClick={onClose}
           title="ESC also closes"
@@ -418,25 +416,10 @@ function WhiteboardModal({
           EXIT
         </button>
 
-        <div
-          style={{
-            display: "flex",
-            gap: "1.5rem",
-            padding: "1rem",
-            flex: 1,
-            overflow: "hidden",
-          }}
-        >
+        <div style={{ display: "flex", gap: "1.5rem", padding: "1rem", flex: 1, overflow: "hidden" }}>
           {/* LEFT: title + scrollable content */}
-          <div
-            style={{
-              flex: 1,
-              display: "flex",
-              flexDirection: "column",
-              minWidth: 0,
-            }}
-          >
-            {/* Title bar */}
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+            {/* Title bar (BLACK text in dark mode) */}
             <div
               style={{
                 background: panel,
@@ -446,7 +429,7 @@ function WhiteboardModal({
                 fontWeight: 900,
                 fontSize: "1.8rem",
                 letterSpacing: 1,
-                color: isDark ? "#e5e7eb" : "#0f172a",
+                color: darkMode ? "#000000" : "#0f172a", // ← black at night
                 ...pixelBorder(2),
               }}
             >
@@ -485,7 +468,7 @@ function WhiteboardModal({
                           target="_blank"
                           rel="noopener noreferrer"
                           style={{
-                            color: isDark ? "#93c5fd" : "#0f172a",
+                            color: darkMode ? "#93c5fd" : "#0f172a",
                             textDecoration: "underline",
                           }}
                         >
@@ -504,15 +487,13 @@ function WhiteboardModal({
                 ))
               ) : (
                 <div style={{ fontSize: "1.05rem", color: ink }}>
-                  No content yet. Add <code>sections</code> to this board to
-                  populate it.
+                  No content yet. Add <code>sections</code> to this board to populate it.
                 </div>
               )}
 
               <div style={{ height: 24 }} />
               <p style={{ color: ink }}>
-                Tip: Press <b>ESC</b> or <b>Q</b> to close. Everything here
-                scrolls.
+                Tip: Press <b>ESC</b> or <b>Q</b> to close. Everything here scrolls.
               </p>
             </div>
           </div>
@@ -561,6 +542,7 @@ function WhiteboardModal({
     </div>
   );
 }
+
 /* ---------- Crosshair ---------- */
 function Crosshair({ enabled = true }: { enabled?: boolean }) {
   const { camera } = useThree();
@@ -809,8 +791,8 @@ function MovementControls({
 
 
 /* ---------- World ---------- */
-function World() {
-  const groundTex = useMemo(() => makeVoxelGroundTexture(), []);
+function World({ darkMode }: { darkMode: boolean }) {
+  const groundTex = useMemo(() => makeVoxelGroundTexture(darkMode), []);
   useEffect(() => {
     const blockers: AABB[] = [];
     const walk: AABB[] = [];
@@ -884,32 +866,46 @@ function World() {
         <planeGeometry args={[300,300]} />
         <meshBasicMaterial map={groundTex} />
       </mesh>
-      <Trees />
+      <Trees darkMode={darkMode}/>
       <Houses />
       <ParkourBoxes />
-      <CloudField />
+      <CloudField darkMode={darkMode}/>
       <ArenaWalls />
     </group>
   );
 }
 
-function Trees() {
+function Trees({ darkMode }: { darkMode: boolean }) {
   const trees: JSX.Element[] = [];
   const fixed = [[-3,-6],[6,-3],[-6,5],[4,-8]];
-  fixed.forEach(([x,z],i)=>trees.push(<Tree key={`t-fixed-${i}`} position={[x,0,z]} />));
-  const radius = 20; for (let i=0;i<18;i++){ const a=(i/18)*Math.PI*2; trees.push(<Tree key={`t-ring-${i}`} position={[Math.cos(a)*radius,0,Math.sin(a)*radius]} />); }
+  fixed.forEach(([x,z],i)=>trees.push(<Tree key={`t-fixed-${i}`} position={[x,0,z]} darkMode={darkMode}/>));
+  const radius = 20; for (let i=0;i<18;i++){ const a=(i/18)*Math.PI*2; trees.push(<Tree key={`t-ring-${i}`} position={[Math.cos(a)*radius,0,Math.sin(a)*radius]} darkMode={darkMode}/>); }
   return <group>{trees}</group>;
 }
 
-function Tree({ position = [0,0,0] as [number,number,number] }) {
+function Tree({ position = [0,0,0] as [number,number,number], darkMode }: { position:[number,number,number], darkMode:boolean }) {
+  const trunk = "#8b5a2b";
+  const leaf1 = darkMode ? "#013220" : "#2fad4e"; // darker in night
+  const leaf2 = darkMode ? "#022d1c" : "#27a046";
+
   return (
     <group position={position}>
-      <mesh position={[0,1,0]}><boxGeometry args={[0.6,2,0.6]} /><meshBasicMaterial color="#8b5a2b" /></mesh>
-      <mesh position={[0,2.4,0]}><boxGeometry args={[2,1.2,2]} /><meshBasicMaterial color="#2fad4e" /></mesh>
-      <mesh position={[0,3.3,0]}><boxGeometry args={[1.4,1,1.4]} /><meshBasicMaterial color="#27a046" /></mesh>
+      <mesh position={[0,1,0]}>
+        <boxGeometry args={[0.6,2,0.6]} />
+        <meshBasicMaterial color={trunk} />
+      </mesh>
+      <mesh position={[0,2.4,0]}>
+        <boxGeometry args={[2,1.2,2]} />
+        <meshBasicMaterial color={leaf1} />
+      </mesh>
+      <mesh position={[0,3.3,0]}>
+        <boxGeometry args={[1.4,1,1.4]} />
+        <meshBasicMaterial color={leaf2} />
+      </mesh>
     </group>
   );
 }
+
 
 function Houses(){
   const list: [number,number][] = [[-16,-12],[16,-10],[-14,14],[14,14]];
@@ -987,25 +983,36 @@ function ParkourBoxes(){
   );
 }
 
-function Cloud({ position=[0,0,0] as [number,number,number] }){
+function Cloud({ position=[0,0,0] as [number,number,number], darkMode }: { position:[number,number,number]; darkMode:boolean }){
+  const cloud = darkMode ? "#d1d5db" : "#ffffff"; // grey at night
   return (
     <group position={position}>
       {[[0,0,0],[1.2,0.3,0.4],[-1,0.2,-0.4],[0.2,-0.1,0.9]].map((o,i)=>(
         <mesh key={i} position={[o[0],o[1],o[2]]}>
           <boxGeometry args={[2,1,1]} />
-          <meshBasicMaterial color="#ffffff" />
+          <meshBasicMaterial color={cloud} />
         </mesh>
       ))}
     </group>
   );
 }
 
-function CloudField(){
+
+function CloudField({ darkMode }: { darkMode: boolean }){
   const groups: JSX.Element[] = [];
   const ringRadius = 14, ringCount=12;
-  for(let i=0;i<ringCount;i++){ const ang=(i/ringCount)*Math.PI*2; groups.push(<Cloud key={"ring"+i} position={[Math.cos(ang)*ringRadius, CLOUD_ALT, Math.sin(ang)*ringRadius]} />); }
+  for(let i=0;i<ringCount;i++){ 
+    const ang=(i/ringCount)*Math.PI*2; 
+    groups.push(<Cloud key={"ring"+i} position={[Math.cos(ang)*ringRadius, CLOUD_ALT, Math.sin(ang)*ringRadius]} darkMode={darkMode} />); 
+  }
   const grid=[-2,-1,0,1,2];
-  grid.forEach(gx=>grid.forEach(gz=>{ if(gx===0&&gz===0) return; const x=gx*10+(gx%2===0?2:-2); const z=gz*12+(gz%2===0?-2:2); const y=CLOUD_ALT+(((gx+gz+5)%3)-1); groups.push(<Cloud key={`grid-${gx}-${gz}`} position={[x,y,z]} />); }));
+  grid.forEach(gx=>grid.forEach(gz=>{
+    if(gx===0&&gz===0) return; 
+    const x=gx*10+(gx%2===0?2:-2); 
+    const z=gz*12+(gz%2===0?-2:2); 
+    const y=CLOUD_ALT+(((gx+gz+5)%3)-1); 
+    groups.push(<Cloud key={`grid-${gx}-${gz}`} position={[x,y,z]} darkMode={darkMode} />);
+  }));
   return <group>{groups}</group>;
 }
 
@@ -1040,22 +1047,22 @@ function ArenaWalls(){
 }
 
 /* ---------- Grounded Whiteboards (with poles) ---------- */
-function GroundedWhiteboards({ setActiveBoard, isDark }: { setActiveBoard: (id: string) => void; isDark:boolean; }){
+function GroundedWhiteboards({ setActiveBoard, darkMode }: { setActiveBoard: (id: string) => void; darkMode:boolean; }){
   const squareSize = 9.5;
   const positions: [number,number,number][] = [[squareSize,BOARD_ALT,0],[0,BOARD_ALT,-squareSize],[-squareSize,BOARD_ALT,0],[0,BOARD_ALT,squareSize]];
   const rotations: [number,number,number][] = [[0,-Math.PI/2,0],[0,0,0],[0,Math.PI/2,0],[0,Math.PI,0]];
   return (
     <group>
       {WHITEBOARD_CONFIG.map((cfg,i)=>(
-        <GroundedBoard key={cfg.id} position={positions[i]} rotation={rotations[i]} config={cfg} onClick={()=>setActiveBoard(cfg.id)} isDark={isDark} />
+        <GroundedBoard key={cfg.id} position={positions[i]} rotation={rotations[i]} config={cfg} onClick={()=>setActiveBoard(cfg.id)} darkMode={darkMode} />
       ))}
     </group>
   );
 }
 
-function GroundedBoard({ position, rotation, config, isDark, onClick}: { position:[number,number,number]; rotation:[number,number,number]; config:(typeof WHITEBOARD_CONFIG)[0]; isDark: boolean; onClick:()=>void; }){
+function GroundedBoard({ position, rotation, config, darkMode, onClick}: { position:[number,number,number]; rotation:[number,number,number]; config:(typeof WHITEBOARD_CONFIG)[0]; darkMode: boolean; onClick:()=>void; }){
   const plank = useMemo(()=>makePlankTexture(),[]);
-  const banner = useMemo(() => makeCenterBannerTextureThemed(config.title, isDark), [config.title, isDark]);
+  const banner = useMemo(() => makeCenterBannerTextureThemed(config.title, darkMode), [config.title, darkMode]);
   const W=7.5, H=3.4, D=0.6; // wood core size
   const poleHeight = position[1]-0.1;
   return (
@@ -1085,7 +1092,7 @@ function GroundedBoard({ position, rotation, config, isDark, onClick}: { positio
 }
 
 /* ---------- Thick floating sign with RGB border animation ---------- */
-function ThickSkySign({ text, rgbActive, isDark }: { text: string; rgbActive: boolean; isDark: boolean; }){
+function ThickSkySign({ text, rgbActive, darkMode }: { text: string; rgbActive: boolean; darkMode: boolean; }){
   const groupRef = useRef<THREE.Group>(null);
   const texRef = useRef<THREE.CanvasTexture | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -1122,7 +1129,7 @@ function ThickSkySign({ text, rgbActive, isDark }: { text: string; rgbActive: bo
     ctx.fillStyle="#7b4f28"; ctx.fillRect(0,0,canvas.width,canvas.height);
     for(let i=0;i<500;i++){ ctx.fillStyle=`rgba(0,0,0,${Math.random()*0.2})`; ctx.fillRect(Math.random()*canvas.width, Math.random()*canvas.height, 10,10); }
      // top band (dark vs light)
-    if (isDark){
+    if (darkMode){
       ctx.fillStyle="#1d3b2a"; ctx.fillRect(0,0,canvas.width,canvas.height*0.25);
       ctx.fillStyle="#245a38"; ctx.fillRect(0,0,canvas.width,canvas.height*0.18);
     } else {
@@ -1132,7 +1139,7 @@ function ThickSkySign({ text, rgbActive, isDark }: { text: string; rgbActive: bo
 
     // frame
     ctx.lineWidth=40;
-    ctx.strokeStyle = isDark ? "#0b1220" : "#0f172a";
+    ctx.strokeStyle = darkMode ? "#0b1220" : "#0f172a";
     ctx.strokeRect(0,0,canvas.width,canvas.height);
 
 
@@ -1169,8 +1176,8 @@ function ThickSkySign({ text, rgbActive, isDark }: { text: string; rgbActive: bo
     }
 
      // text
-    ctx.fillStyle = isDark ? "#e5e7eb" : "#ffffff";
-    ctx.font = "900 200px 'Press Start 2P', monospace";
+    ctx.fillStyle = darkMode ? "#e5e7eb" : "#ffffff";
+    ctx.font = "900 150px 'Press Start 2P', monospace";
     ctx.textAlign="center"; ctx.textBaseline="middle";
     ctx.fillText(text.toUpperCase(), canvas.width/2, canvas.height/2+10);
 
@@ -1205,7 +1212,7 @@ function ThickSkySign({ text, rgbActive, isDark }: { text: string; rgbActive: bo
   });
   
 
-  useEffect(()=>{ drawBanner(phaseRef.current); /* initial draw */ }, [text, rgbActive, isDark]);
+  useEffect(()=>{ drawBanner(phaseRef.current); /* initial draw */ }, [text, rgbActive, darkMode]);
 
   return (
     <group ref={groupRef} position={[0,TITLE_ALT,0]}>
@@ -1217,7 +1224,7 @@ function ThickSkySign({ text, rgbActive, isDark }: { text: string; rgbActive: bo
 }
 
 /* ---------- Texture Helpers ---------- */
-function makeCenterBannerTextureThemed(text: string, isDark: boolean){
+function makeCenterBannerTextureThemed(text: string, darkMode: boolean){
   const canvas = document.createElement('canvas'); canvas.width = 2048; canvas.height = 900;
   const ctx = canvas.getContext('2d')!;
 
@@ -1228,7 +1235,7 @@ function makeCenterBannerTextureThemed(text: string, isDark: boolean){
   }
 
   // top band — darker in dark mode
-  if (isDark){
+  if (darkMode){
     ctx.fillStyle="#1d3b2a"; ctx.fillRect(0,0,canvas.width,canvas.height*0.25);
     ctx.fillStyle="#245a38"; ctx.fillRect(0,0,canvas.width,canvas.height*0.18);
   } else {
@@ -1238,11 +1245,11 @@ function makeCenterBannerTextureThemed(text: string, isDark: boolean){
 
   // frame
   ctx.lineWidth = 40;
-  ctx.strokeStyle = isDark ? "#0b1220" : "#0f172a";
+  ctx.strokeStyle = darkMode ? "#0b1220" : "#0f172a";
   ctx.strokeRect(0,0,canvas.width,canvas.height);
 
   // text
-  ctx.fillStyle = isDark ? "#e5e7eb" : "#ffffff";
+  ctx.fillStyle = darkMode ? "#e5e7eb" : "#ffffff";
   ctx.font = "900 200px 'Press Start 2P', monospace";
   ctx.textAlign = "center"; ctx.textBaseline = "middle";
   ctx.fillText(text.toUpperCase(), canvas.width/2, canvas.height/2+10);
@@ -1252,12 +1259,33 @@ function makeCenterBannerTextureThemed(text: string, isDark: boolean){
   return texture;
 }
 
-function makeVoxelGroundTexture(){
-  const size=256; const c=document.createElement("canvas"); c.width=size; c.height=size; const ctx=c.getContext("2d")!;
-  ctx.fillStyle="#4caf50"; ctx.fillRect(0,0,size,size);
-  for(let i=0;i<1200;i++){ ctx.fillStyle=`rgba(20,100,40,${0.6+Math.random()*0.4})`; const x=Math.random()*size; const y=Math.random()*size; ctx.fillRect(x,y,1+Math.random()*2,1+Math.random()*2); }
-  const tex=new THREE.CanvasTexture(c); tex.wrapS=tex.wrapT=THREE.RepeatWrapping; tex.repeat.set(40,40); tex.anisotropy=8; tex.needsUpdate=true; return tex;
+function makeVoxelGroundTexture(darkMode: boolean){
+  const size=256; 
+  const c=document.createElement("canvas"); 
+  c.width=size; c.height=size; 
+  const ctx=c.getContext("2d")!;
+
+  const base = darkMode ? "#064e3b" : "#4caf50"; // darker green at night
+  const speckMin = darkMode ? "rgba(5,50,30," : "rgba(20,100,40,";
+  
+  ctx.fillStyle=base; 
+  ctx.fillRect(0,0,size,size);
+
+  for(let i=0;i<1200;i++){ 
+    ctx.fillStyle=`${speckMin}${0.6+Math.random()*0.4})`; 
+    const x=Math.random()*size; 
+    const y=Math.random()*size; 
+    ctx.fillRect(x,y,1+Math.random()*2,1+Math.random()*2); 
+  }
+
+  const tex=new THREE.CanvasTexture(c); 
+  tex.wrapS=tex.wrapT=THREE.RepeatWrapping; 
+  tex.repeat.set(40,40); 
+  tex.anisotropy=8; 
+  tex.needsUpdate=true; 
+  return tex;
 }
+
 
 function makePlankTexture(){
   const c=document.createElement("canvas"); c.width=512; c.height=512; const ctx=c.getContext("2d")!;
