@@ -1552,6 +1552,38 @@ function InteriorShell({
     </group>
   );
 }
+function DeskAndLamp({ x, z, baseW = 8, baseD = 8 }: { x: number; z: number; baseW?: number; baseD?: number }) {
+  return (
+    <group position={[x, 0, z]}>
+      {/* --- Wooden floor --- */}
+      <mesh position={[0, -0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[baseW, baseD]} />
+        <meshStandardMaterial color="#a9744f" />
+      </mesh>
+
+      {/* --- Desk --- */}
+      <mesh position={[-2, 0.5, -1.6]}>
+        <boxGeometry args={[1.5, 0.1, 0.7]} />
+        <meshStandardMaterial color="#8B5A2B" />
+      </mesh>
+      <mesh position={[-2, 0.25, -1.6]}>
+        <boxGeometry args={[1.5, 0.5, 0.7]} />
+        <meshStandardMaterial color="#654321" />
+      </mesh>
+
+      {/* --- Lamp --- */}
+      <mesh position={[-2, 1.2, -1.6]}>
+        <cylinderGeometry args={[0.05, 0.05, 0.4, 12]} />
+        <meshStandardMaterial color="gray" />
+      </mesh>
+      <mesh position={[-2, 1.5, -1.6]}>
+        <coneGeometry args={[0.25, 0.3, 16]} />
+        <meshStandardMaterial emissive="yellow" color="white" />
+      </mesh>
+      <pointLight position={[-2, 1.5, -1.6]} intensity={0.6} distance={5} />
+    </group>
+  );
+}
 
 function HouseInteriors({
   enabled,
@@ -1590,33 +1622,6 @@ function HouseInteriors({
           <group key={`interior-${h.id}`}>
             {/* Interior shell only when inside THIS house */}
             {active && <InteriorShell x={h.x} z={h.z} baseW={baseW} baseD={baseD} baseH={baseH} />}
-            {active && (
-              <group>
-                {/* Desk top */}
-                <mesh position={[-2, 0.5, -1.6]}>
-                  <boxGeometry args={[1.5, 0.1, 0.7]} />
-                  <meshStandardMaterial color="#8B5A2B" />
-                </mesh>
-                {/* Desk body */}
-                <mesh position={[-2, 0.25, -1.6]}>
-                  <boxGeometry args={[1.5, 0.5, 0.7]} />
-                  <meshStandardMaterial color="#654321" />
-                </mesh>
-
-                {/* Lamp stand */}
-                <mesh position={[-2, 1.2, -1.6]}>
-                  <cylinderGeometry args={[0.05, 0.05, 0.4, 12]} />
-                  <meshStandardMaterial color="gray" />
-                </mesh>
-                {/* Lamp shade */}
-                <mesh position={[-2, 1.5, -1.6]}>
-                  <coneGeometry args={[0.25, 0.3, 16]} />
-                  <meshStandardMaterial emissive="yellow" color="white" />
-                </mesh>
-                {/* Lamp light */}
-                <pointLight position={[-2, 1.5, -1.6]} intensity={0.6} distance={5} />
-              </group>
-            )}
             <InteriorPicture
               img={ex.img}
               frameTex={frameTex}
@@ -1633,6 +1638,7 @@ function HouseInteriors({
               onTrigger={() => setExhibit({ img: asset(ex.img), caption: ex.caption })}
               setPrompt={setPrompt}
             />
+            {active && <DeskAndLamp x={h.x} z={h.z} baseW={baseW} baseD={baseD} />}
           </group>
         );
       })}
