@@ -224,6 +224,7 @@ function BackgroundMusic({ src = "audio/bg.mp3", maxVolume = 0.4 }) {
 }
 
 export default function App() {
+  const [prompt, setPrompt] = useState<string | null>(null);
   const [activeBoard, setActiveBoard] = useState<string | null>(null);
   const [rgbBorder, setRgbBorder] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
@@ -268,26 +269,52 @@ export default function App() {
         </div>
       )}
       <BackgroundMusic src="audio/bg.mp3" maxVolume={0.6} />
+      {prompt && (
+        <div
+          style={{
+            position: "fixed",
+            left: "50%",
+            bottom: 24,
+            transform: "translateX(-50%)",
+            background: "rgba(30,41,59,0.85)", // slate-800 with alpha
+            color: "#fff",
+            padding: "10px 16px",
+            borderRadius: 10,
+            zIndex: 20,
+            fontFamily: "monospace",
+            fontWeight: 800,
+            letterSpacing: 1,
+            border: "3px solid #111827",
+          }}
+        >
+          {prompt}
+        </div>
+      )}
       <Canvas camera={{ fov: 70, position: [0, 1.6, 6] }} onCreated={({ gl }) => gl.setClearColor(0x000000, 0)}>
         <ambientLight intensity={0.7} />
         <directionalLight position={[8, 20, 10]} intensity={1} />
 
-        <World darkMode={darkMode} />
-        <GroundedWhiteboards setActiveBoard={setActiveBoard} darkMode={darkMode} />
+        <World darkMode={darkMode} enabled={!activeBoard} setPrompt={setPrompt}/>
+        <GroundedWhiteboards setActiveBoard={setActiveBoard} darkMode={darkMode} setPrompt={setPrompt}/>
         <ThickSkySign text="WELCOME TO MY WORLD" rgbActive={rgbBorder} darkMode={darkMode} />
 
         <MouseLookControls enabled={!activeBoard} initialYaw={0} initialPitch={-0.1} />
         <MovementControls enabled={!activeBoard} speed={3.5} />
         <Crosshair enabled={!activeBoard} />
-        <InteractionManager
+        <InteractAtPoint
           target={topBtnPos}
           enabled={!activeBoard}
-          onInteract={()=>{ 
-            window.dispatchEvent(new CustomEvent('toggle-rgb-border')); 
-            window.dispatchEvent(new CustomEvent('spin-banner'));
-            window.dispatchEvent(new CustomEvent('toggle-dark-mode'));
+          keyName="e"
+          range={2.0}
+          label={darkMode ? "Press E to switch to Day" : "Press E to switch to Night"}
+          onTrigger={() => {
+            window.dispatchEvent(new CustomEvent("toggle-rgb-border"));
+            window.dispatchEvent(new CustomEvent("spin-banner"));
+            window.dispatchEvent(new CustomEvent("toggle-dark-mode"));
           }}
+          setPrompt={setPrompt}
         />
+        <LadderPrompts enabled={!activeBoard} setPrompt={setPrompt} />
       </Canvas>
 
       {activeBoard && (
@@ -298,26 +325,50 @@ export default function App() {
 }
 
 /* ---------- Pure proximity + keybind (E) — no DOM inside <Canvas> ---------- */
-function InteractionManager({ target, enabled, onInteract, range = 2.0 }:{ target: THREE.Vector3; enabled: boolean; onInteract: ()=>void; range?: number; }){
-  const { camera } = useThree();
-  const inRangeRef = useRef(false);
+function InteractAtPoint({
+  target,
+  enabled,
+  keyName = "e",
+  range = 2.0,
+  label,
+  onTrigger,
+  setPrompt,
+  }: {
+    target: THREE.Vector3;
+    enabled: boolean;
+    keyName?: string;         // "e", "f", etc (case-insensitive)
+    range?: number;           // meters
+    label: string;            // HUD text to show
+    onTrigger: () => void;
+    setPrompt: (s: string | null) => void;
+  }) {
+    const { camera } = useThree();
+    const inRange = useRef(false);
 
-  useEffect(()=>{
-    function onKey(e: KeyboardEvent){
-      if(!enabled) return;
-      if(!inRangeRef.current) return;
-      if(e.key === 'e' || e.key === 'E'){ onInteract(); }
-    }
-    window.addEventListener('keydown', onKey);
-    return ()=>window.removeEventListener('keydown', onKey);
-  }, [enabled, onInteract]);
+    // key handler
+    useEffect(() => {
+      function onKey(e: KeyboardEvent) {
+        if (!enabled) return;
+        if (!inRange.current) return;
+        if (e.key.toLowerCase() === keyName.toLowerCase()) onTrigger();
+      }
+      window.addEventListener("keydown", onKey);
+      return () => window.removeEventListener("keydown", onKey);
+    }, [enabled, keyName, onTrigger]);
 
-  useFrame(()=>{
-    if(!enabled){ inRangeRef.current = false; return; }
-    const d = camera.position.distanceTo(target);
-    inRangeRef.current = d < range;
-  });
-
+    // distance + prompt
+    useFrame(() => {
+      if (!enabled) {
+        if (inRange.current) { inRange.current = false; setPrompt(null); }
+        return;
+      }
+      const d = camera.position.distanceTo(target);
+      const nowInRange = d < range;
+      if (nowInRange !== inRange.current) {
+        inRange.current = nowInRange;
+        setPrompt(nowInRange ? label : null);
+      }
+    });
   return null;
 }
 
@@ -791,7 +842,7 @@ function MovementControls({
 
 
 /* ---------- World ---------- */
-function World({ darkMode }: { darkMode: boolean }) {
+function World({ darkMode,enabled,setPrompt }: { darkMode: boolean;enabled:boolean;setPrompt: (s: string | null) => void; }) {
   const groundTex = useMemo(() => makeVoxelGroundTexture(darkMode), [darkMode]);
   useEffect(() => () => { groundTex.dispose?.(); }, [groundTex]);
   useEffect(() => {
@@ -871,6 +922,7 @@ function World({ darkMode }: { darkMode: boolean }) {
       <Houses />
       <ParkourBoxes />
       <CloudField darkMode={darkMode}/>
+      <LadderPrompts enabled={enabled} setPrompt={setPrompt} />
       <ArenaWalls />
     </group>
   );
@@ -1016,6 +1068,34 @@ function CloudField({ darkMode }: { darkMode: boolean }){
   }));
   return <group>{groups}</group>;
 }
+function LadderPrompts({enabled,setPrompt}: {enabled: boolean;setPrompt: (s: string | null) => void;}) {
+  // These must match your Houses layout:
+  const houses: [number, number][] = [[-16,-12],[16,-10],[-14,14],[14,14]];
+  const baseW = 8, baseD = 8;
+  const ld = 0.5;
+
+  return (
+    <group>
+      {houses.map(([x,z], i) => {
+        // this mirrors where you built the climb AABB:
+        const lx = x + baseW * 0.35;
+        const lz = z + baseD/2 + ld/2 + 0.02;
+        return (
+          <InteractAtPoint
+          key={`ladder-${i}`}
+          target={new THREE.Vector3(lx, 1.4, lz)}     // ✅ correct prop
+          enabled={enabled}                      // or just `true` if you prefer
+          range={1.8}
+          keyName="f"                                 // ✅ correct prop
+          label="Press F to climb ladder"
+          onTrigger={() => {}}
+          setPrompt={setPrompt}            
+          />
+        );
+      })}
+    </group>
+  );
+}
 
 /* Tall perimeter walls to keep players in-bounds */
 function ArenaWalls(){
@@ -1048,20 +1128,66 @@ function ArenaWalls(){
 }
 
 /* ---------- Grounded Whiteboards (with poles) ---------- */
-function GroundedWhiteboards({ setActiveBoard, darkMode }: { setActiveBoard: (id: string) => void; darkMode:boolean; }){
+function GroundedWhiteboards({
+  setActiveBoard,
+  darkMode,
+  setPrompt,
+}: {
+  setActiveBoard: (id: string) => void;
+  darkMode: boolean;
+  setPrompt: (s: string | null) => void;
+}) {
   const squareSize = 9.5;
-  const positions: [number,number,number][] = [[squareSize,BOARD_ALT,0],[0,BOARD_ALT,-squareSize],[-squareSize,BOARD_ALT,0],[0,BOARD_ALT,squareSize]];
-  const rotations: [number,number,number][] = [[0,-Math.PI/2,0],[0,0,0],[0,Math.PI/2,0],[0,Math.PI,0]];
+  const positions: [number, number, number][] = [
+    [ squareSize, BOARD_ALT, 0],
+    [ 0,          BOARD_ALT,-squareSize],
+    [-squareSize, BOARD_ALT, 0],
+    [ 0,          BOARD_ALT, squareSize],
+  ];
+  const rotations: [number, number, number][] = [
+    [0, -Math.PI / 2, 0],
+    [0,  0,           0],
+    [0,  Math.PI / 2, 0],
+    [0,  Math.PI,     0],
+  ];
+
   return (
     <group>
-      {WHITEBOARD_CONFIG.map((cfg,i)=>(
-        <GroundedBoard key={cfg.id} position={positions[i]} rotation={rotations[i]} config={cfg} onClick={()=>setActiveBoard(cfg.id)} darkMode={darkMode} />
-      ))}
+      {WHITEBOARD_CONFIG.map((cfg, i) => {
+        const pos = positions[i];
+        const rot = rotations[i];
+
+        // compute a point ~1.4m in front of the board (world space)
+        const forward = new THREE.Vector3(0, 0, 1).applyEuler(new THREE.Euler(0, rot[1], 0));
+        const interactPos = new THREE.Vector3(pos[0], pos[1], pos[2])
+          .add(forward.clone().multiplyScalar(1.4));
+        interactPos.y = pos[1]; // keep prompt at board height
+
+        return (
+          <group key={cfg.id}>
+            <GroundedBoard
+              position={pos}
+              rotation={rot}
+              config={cfg}
+              darkMode={darkMode}
+            />
+
+            <InteractAtPoint
+              target={interactPos}
+              enabled={true}
+              range={2.2}
+              label={`Press E to open ${cfg.title}`}
+              onTrigger={() => setActiveBoard(cfg.id)}
+              setPrompt={setPrompt}
+            />
+          </group>
+        );
+      })}
     </group>
   );
 }
 
-function GroundedBoard({ position, rotation, config, darkMode, onClick}: { position:[number,number,number]; rotation:[number,number,number]; config:(typeof WHITEBOARD_CONFIG)[0]; darkMode: boolean; onClick:()=>void; }){
+function GroundedBoard({ position, rotation, config, darkMode}: { position:[number,number,number]; rotation:[number,number,number]; config:(typeof WHITEBOARD_CONFIG)[0]; darkMode: boolean; }){
   const plank = useMemo(()=>makePlankTexture(),[]);
   const banner = useMemo(() => makeCenterBannerTextureThemed(config.title, darkMode), [config.title, darkMode]);
   const W=7.5, H=3.4, D=0.6; // wood core size
@@ -1074,12 +1200,12 @@ function GroundedBoard({ position, rotation, config, darkMode, onClick}: { posit
         <meshBasicMaterial map={plank} />
       </mesh>
       {/* clickable front banner */}
-      <mesh position={[0,0,D/2+0.01]} onClick={(e)=>{e.stopPropagation();onClick();}}>
+      <mesh position={[0,0,D/2+0.01]}>
         <planeGeometry args={[W*0.97, H*0.95]} />
         <meshBasicMaterial key={darkMode ? "dark" : "light"} map={banner} />
       </mesh>
       {/* large invisible hit area */}
-      <mesh position={[0,0,D/2+0.2]} onClick={(e)=>{e.stopPropagation();onClick();}}>
+      <mesh position={[0,0,D/2+0.2]}>
         <planeGeometry args={[W*1.2,H*1.2]} />
         <meshBasicMaterial transparent opacity={0} />
       </mesh>
