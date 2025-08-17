@@ -17,7 +17,14 @@ const MAX_UP_SNAP = 0.5;      // never snap UP to a surface >50cm above your fee
 const ROOF_GRACE_MS = 1200;   // how long after ladder toggle you’re allowed to snap onto the roof
 
 const asset = (p: string) => `${import.meta.env.BASE_URL}${p.replace(/^\/+/, '')}`;
-
+export type HouseDef = {
+  id: string;
+  x: number;
+  z: number;
+  doorWorld: THREE.Vector3;
+  insideSpawn: THREE.Vector3;
+  interiorLight: THREE.Vector3;
+};
 // --- Simple collision system (AABBs) ---
 type AABB = { min: [number, number, number]; max: [number, number, number]; tag?: string;};
 
@@ -290,6 +297,7 @@ export default function App() {
   const topBtnPos = useMemo(()=>getTopButtonPos(),[]);
   const [insideHouseId, setInsideHouseId] = useState<string | null>(null);
   const [exhibit, setExhibit] = useState<{img: string; caption: string} | null>(null);
+  const [houseDefs, setHouseDefs] = useState<HouseDef[]>([]);
   const skyGradient = darkMode
   ? "linear-gradient(#0b1220, #1a237e)"   // night: deep navy → indigo
   : "linear-gradient(#87ceeb, #1e90ff)"; // day: light blue → sky blue
@@ -360,17 +368,20 @@ export default function App() {
         <ambientLight intensity={0.7} />
         <directionalLight position={[8, 20, 10]} intensity={1} />
 
-        <World darkMode={darkMode} enabled={!activeBoard} setPrompt={setPrompt}/>
-        {(globalThis as any).__HOUSE_DEFS__ && (
-          <>
-            <HouseInteriors
-              enabled={!activeBoard}
-              houseDefs={(globalThis as any).__HOUSE_DEFS__}
-              setPrompt={setPrompt}
-              setExhibit={setExhibit}
-              insideId={insideHouseId}
-            />
-          </>
+        <World
+          darkMode={darkMode}
+          enabled={!activeBoard}
+          setPrompt={setPrompt}
+          onDefs={setHouseDefs}   // NEW
+        />
+        {houseDefs.length > 0 && (
+          <HouseInteriors
+            enabled={!activeBoard}
+            houseDefs={houseDefs}
+            setPrompt={setPrompt}
+            setExhibit={setExhibit}
+            insideId={insideHouseId}
+          />
         )}
         <GroundedWhiteboards setActiveBoard={setActiveBoard} darkMode={darkMode} setPrompt={setPrompt}/>
         <ThickSkySign text="WELCOME TO MY WORLD" rgbActive={rgbBorder} darkMode={darkMode} />
@@ -400,6 +411,7 @@ export default function App() {
             insideId={insideHouseId}
           />
         )}
+
         <LadderPrompts enabled={!activeBoard} setPrompt={setPrompt} />
       </Canvas>
       {exhibit && (
@@ -974,9 +986,18 @@ function MovementControls({
 
 
 /* ---------- World ---------- */
-function World({ darkMode,enabled,setPrompt }: { darkMode: boolean;enabled:boolean;setPrompt: (s: string | null) => void; }) {
+function World({ darkMode,enabled,setPrompt, onDefs,}: { darkMode: boolean;enabled:boolean;setPrompt: (s: string | null) => void; onDefs: (defs: HouseDef[]) => void;}) {
+  type FullHouseDef = HouseDef & {
+    baseW: number;
+    baseH: number;
+    baseD: number;
+    roofT: number;
+    ld: number;
+    ladderX: number;
+    ladderZ: number;
+  };
   const groundTex = useMemo(() => makeVoxelGroundTexture(darkMode), [darkMode]);
-  const houseDefs = useMemo(() => {
+  const houseDefs = useMemo<FullHouseDef[]>(() => {
     const raw = [
       { id: "house-0", x: -16, z: -12 },
       { id: "house-1", x:  16, z: -10 },
@@ -984,18 +1005,29 @@ function World({ darkMode,enabled,setPrompt }: { darkMode: boolean;enabled:boole
       { id: "house-3", x:  14, z:  14 },
     ];
     const baseW=8, baseH=4.4, baseD=8, roofT=0.4, ld=0.5;
-
+  
     return raw.map(h => {
       const doorWorld     = new THREE.Vector3(h.x, 0,   h.z + baseD/2 + 0.1);
       const insideSpawn   = new THREE.Vector3(h.x, 1.6, h.z + baseD/2 - 2.0);
       const interiorLight = new THREE.Vector3(h.x, baseH*0.6, h.z);
-      // also precompute ladder pos if useful elsewhere
-      const ladderX = h.x + baseW*0.35;
-      const ladderZ = h.z + baseD/2 + ld/2 + 0.02;
-
-      return {...h, baseW, baseH, baseD, roofT, ld, doorWorld, insideSpawn, interiorLight, ladderX, ladderZ};
+      const ladderX       = h.x + baseW*0.35;
+      const ladderZ       = h.z + baseD/2 + ld/2 + 0.02;
+  
+      return { ...h, baseW, baseH, baseD, roofT, ld, ladderX, ladderZ, doorWorld, insideSpawn, interiorLight };
     });
-  }, []);
+  }, []);  
+  useEffect(() => {
+    onDefs(
+      houseDefs.map(h => ({
+        id: h.id,
+        x: h.x,
+        z: h.z,
+        doorWorld: h.doorWorld,
+        insideSpawn: h.insideSpawn,
+        interiorLight: h.interiorLight,
+      }))
+    );
+  }, [onDefs, houseDefs]);
 
   useEffect(() => () => { groundTex.dispose?.(); }, [groundTex]);
   useEffect(() => {
