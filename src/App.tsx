@@ -502,7 +502,7 @@ export default function App() {
 
       {!activeBoard && (
         <div style={{ position: "fixed", top: 10, left: "50%", transform: "translateX(-50%)", background: "rgba(0,0,0,0.5)", color: "#fff", padding: "8px 12px", borderRadius: 10, zIndex: 10, fontSize: 14 }}>
-          Click to lock the mouse · WASD move · Space jump · F to toggle ladder climb · Press <b>E</b> near the golden button · ESC to close · Click M to mute/unmute
+          Click to lock the mouse · WASD move · Space jump · F to toggle ladder climb · Press <b>E</b> near the golden button · ESC to close · Click Shift to Sprint · Click M to mute/unmute
         </div>
       )}
       <BackgroundMusic
@@ -592,8 +592,6 @@ export default function App() {
             insideId={insideHouseId}
           />
         )}
-
-        <LadderPrompts enabled={!activeBoard} setPrompt={setPrompt} />
       </Canvas>
       {exhibit && (
         <ImageModal
@@ -669,7 +667,7 @@ function ImageModal({
   const ink   = darkMode ? "#e5e7eb" : "#111827";
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "q") onClose(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
@@ -1761,7 +1759,7 @@ function HouseInteriors({
         const ex = exhibits[i % exhibits.length];
 
         // picture on the BACK wall, slightly off the wall
-        const picCenter = new THREE.Vector3(h.x, 2.0, h.z - (baseD / 2 - 0.10));
+        const picCenter = new THREE.Vector3(h.x, 2.2, h.z - (baseD / 2 - 0.10));
         const picLookPos = picCenter.clone().add(new THREE.Vector3(0, 0, 0.8));
 
         return (
@@ -1800,22 +1798,28 @@ function InteriorPicture({
   position: [number, number, number];
 }) {
   const tex = useLoader(THREE.TextureLoader, asset(img));
+
   return (
     <group position={position}>
+      {/* optional: small light so you can *see* it clearly in dark rooms */}
+      <pointLight position={[0, 0, 0.2]} intensity={0.6} distance={3} />
+
       {/* wooden frame */}
-      <mesh position={[0, 0, 0.03]}>
+      <mesh position={[0, 0, 0.12]}>
         <boxGeometry args={[2.8, 2.0, 0.08]} />
-        <meshBasicMaterial map={frameTex} />
+        <meshBasicMaterial map={frameTex} side={THREE.DoubleSide} />
       </mesh>
+
       {/* inner white border */}
-      <mesh position={[0, 0, 0.035]}>
+      <mesh position={[0, 0, 0.13]}>
         <planeGeometry args={[2.5, 1.8]} />
-        <meshBasicMaterial color="#f3f4f6" />
+        <meshBasicMaterial color="#f3f4f6" side={THREE.DoubleSide} />
       </mesh>
+
       {/* actual image */}
-      <mesh position={[0, 0, 0.04]}>
+      <mesh position={[0, 0, 0.14]}>
         <planeGeometry args={[2.3, 1.6]} />
-        <meshBasicMaterial map={tex} />
+        <meshBasicMaterial map={tex} side={THREE.DoubleSide} />
       </mesh>
     </group>
   );
