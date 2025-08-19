@@ -2,9 +2,35 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+
+    <!-- Single, sane viewport (prevents double meta + accidental zoom on mobile controls) -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+    />
+
+    <!-- Pixel-font your UI uses -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap"
+      rel="stylesheet"
+    />
+
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>World of Samarth</title>
+
+    <style>
+      /* make the canvas fill, remove scroll bounce, and prevent two-finger scroll/zoom */
+      html, body {
+        height: 100%;
+        margin: 0;
+        overscroll-behavior: none;
+        touch-action: none;
+        background: #000; /* avoids white flash behind your gradient */
+      }
+      #root { height: 100%; }
+      /* helpful to keep text rendering consistent on mobile */
+      * { -webkit-tap-highlight-color: transparent; }
+    </style>
   </head>
   <body>
     <div id="root"></div>
