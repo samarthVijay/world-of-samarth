@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type JSX } from "react";
+import { useEffect, useMemo, useRef, useState, type JSX, type Key } from "react";
 import { Canvas, useFrame, useThree, useLoader } from "@react-three/fiber";
 import * as THREE from "three";
 
@@ -1003,7 +1003,24 @@ function ImageModal({
   );
 }
 
-/* ---------- Whiteboard Modal ---------- */
+/* ---------- Hook: responsive breakpoint ---------- */
+function useIsMobile(bp = 900) {
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== "undefined"
+      ? IS_TOUCH || window.innerWidth <= bp
+      : false
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width:${bp}px)`);
+    const on = () => setIsMobile(IS_TOUCH || mq.matches);
+    on();
+    mq.addEventListener?.("change", on);
+    return () => mq.removeEventListener?.("change", on);
+  }, [bp]);
+  return isMobile;
+}
+
+/* ---------- Whiteboard Modal (responsive) ---------- */
 function WhiteboardModal({
   config,
   onClose,
@@ -1013,39 +1030,83 @@ function WhiteboardModal({
   onClose: () => void;
   darkMode: boolean;
 }) {
+  const isMobile = useIsMobile(980);
+  const [tab, setTab] = useState<"info" | "gallery">("info");
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const [activeIdx, setActiveIdx] = useState(0);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" || e.key.toLowerCase() === "q") onClose();
+      // gallery keyboard nav
+      if (isMobile && tab === "gallery" && scrollerRef.current) {
+        if (e.key === "ArrowRight")
+          scrollerRef.current.scrollBy({ left: scrollerRef.current.clientWidth, behavior: "smooth" });
+        if (e.key === "ArrowLeft")
+          scrollerRef.current.scrollBy({ left: -scrollerRef.current.clientWidth, behavior: "smooth" });
+      }
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+    // prevent background scroll while open
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose, isMobile, tab]);
 
+  // colors & textures
   const pixelBorder = (thick = 6) => ({
-    boxShadow: `0 0 0 ${thick}px #111827, 0 0 0 ${thick * 2}px #6b7280, 0 0 0 ${thick * 3}px #111827` as string,
+    boxShadow: `0 0 0 ${thick}px #111827, 0 0 0 ${thick * 2}px #6b7280, 0 0 0 ${thick * 3}px #111827` as const,
   });
-
   const pixelTile = {
-    backgroundImage: "repeating-linear-gradient(45deg, #9b6b43 0 16px, #8d5e37 16px 32px, #a7744d 32px 48px)",
+    backgroundImage:
+      "repeating-linear-gradient(45deg, #9b6b43 0 16px, #8d5e37 16px 32px, #a7744d 32px 48px)",
     imageRendering: "pixelated" as const,
   };
-
-  const grassStrip = {
-    background: "linear-gradient(#16a34a, #16a34a)",
-    height: 24,
-    width: "100%",
-    borderBottom: "6px solid #14532d",
-  } as const;
-
   const paper = darkMode ? "#cbaa86" : "#d6c2a5";
-  const ink = darkMode ? "#e5e7eb" : "#111827";
   const frame = darkMode ? "#0b1220" : "#0f172a";
+  const ink = darkMode ? "#e5e7eb" : "#111827";
   const panelBlue = "#0e1e2f";
   const panelLight = "#ffffff";
   const overlayBg = "linear-gradient(rgba(116,76,41,0.65), rgba(116,76,41,0.65))";
 
+  const images =
+    (config as any).images ??
+    ((config as any).image ? [(config as any).image] : []);
+
+  // track active slide for dots
+  const onScroll = () => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const i = Math.round(el.scrollLeft / Math.max(1, el.clientWidth));
+    setActiveIdx(Math.max(0, Math.min(i, images.length - 1)));
+  };
+
+  const GalleryDots = () => (
+    <div style={{ display: "flex", gap: 8, justifyContent: "center", padding: "8px 0" }} aria-hidden="true">
+      {images.map((_: any, i: Key | null | undefined) => (
+        <div
+          key={i}
+          style={{
+            width: i === activeIdx ? 14 : 8,
+            height: 8,
+            borderRadius: 6,
+            background: i === activeIdx ? "#22c55e" : "#94a3b8",
+            transition: "width 150ms",
+          }}
+        />
+      ))}
+    </div>
+  );
+
+  // shared overlay wrapper (click outside to close)
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${config.title} modal`}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -1057,83 +1118,97 @@ function WhiteboardModal({
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
-        padding: "2rem",
+        padding: isMobile ? "0" : "2rem",
       }}
     >
-      <div
-        onMouseDown={(e) => e.stopPropagation()}
-        style={{
-          position: "relative",
-          width: "92vw",
-          height: "92vh",
-          background: paper,
-          borderRadius: 0,
-          overflow: "hidden",
-          display: "flex",
-          flexDirection: "column",
-          ...pixelBorder(6),
-          ...pixelTile,
-        }}
-      >
-        <div style={grassStrip} />
-
-        <button
-          onClick={onClose}
-          title="ESC also closes"
+      {/* DESKTOP: existing split layout */}
+      {!isMobile && (
+        <div
+          onMouseDown={(e) => e.stopPropagation()}
           style={{
-            position: "absolute",
-            top: 16,
-            right: 16,
-            padding: "10px 18px",
-            background: "#22c55e",
-            color: "#0b2e13",
-            border: "4px solid #14532d",
-            cursor: "pointer",
-            fontFamily: "monospace",
-            fontWeight: 900,
-            letterSpacing: 1,
-            textTransform: "uppercase",
-            imageRendering: "pixelated",
-            ...pixelBorder(2),
+            position: "relative",
+            width: "92vw",
+            height: "92vh",
+            background: paper,
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+            ...pixelBorder(6),
+            ...pixelTile,
           }}
         >
-          EXIT
-        </button>
+          <div
+            style={{
+              background: "linear-gradient(#16a34a, #16a34a)",
+              height: 24,
+              width: "100%",
+              borderBottom: "6px solid #14532d",
+            }}
+          />
+          <button
+            onClick={onClose}
+            title="ESC also closes"
+            style={{
+              position: "absolute",
+              top: 16,
+              right: 16,
+              padding: "10px 18px",
+              background: "#22c55e",
+              color: "#0b2e13",
+              border: "4px solid #14532d",
+              cursor: "pointer",
+              fontFamily: "monospace",
+              fontWeight: 900,
+              letterSpacing: 1,
+              textTransform: "uppercase",
+              imageRendering: "pixelated",
+              ...pixelBorder(2),
+            }}
+          >
+            EXIT
+          </button>
 
-        <div style={{ display: "flex", gap: "1.5rem", padding: "1rem", flex: 1, overflow: "hidden" }}>
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-            <div
-              style={{
-                background: darkMode ? "#18243a" : "#fefefe",
-                padding: "0.75rem 1rem",
-                border: `4px solid ${frame}`,
-                fontFamily: "monospace",
-                fontWeight: 900,
-                fontSize: "1.8rem",
-                letterSpacing: 1,
-                color: darkMode ? "#ffffff" : "#0f172a",
-                ...pixelBorder(2),
-              }}
-            >
-              {config.title.toUpperCase()}
-            </div>
-
-            <div
-              style={{
-                marginTop: "1rem",
-                background: darkMode ? panelBlue : panelLight,
-                padding: "1rem",
-                border: `4px solid ${frame}`,
-                fontFamily: "monospace",
-                color: ink,
-                lineHeight: 1.7,
-                flex: 1,
-                overflow: "auto",
-                ...pixelBorder(2),
-              }}
-            >
-              {Array.isArray((config as any).sections) ? (
-                (config as any).sections.map((sec: any, i: number) => (
+          <div
+            style={{
+              display: "flex",
+              gap: "1.5rem",
+              padding: "1rem",
+              flex: 1,
+              overflow: "hidden",
+            }}
+          >
+            {/* LEFT: text */}
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+              <div
+                style={{
+                  background: darkMode ? "#18243a" : "#fefefe",
+                  padding: "0.75rem 1rem",
+                  border: `4px solid ${frame}`,
+                  fontFamily: "monospace",
+                  fontWeight: 900,
+                  fontSize: "1.8rem",
+                  letterSpacing: 1,
+                  color: darkMode ? "#ffffff" : "#0f172a",
+                  ...pixelBorder(2),
+                }}
+              >
+                {config.title.toUpperCase()}
+              </div>
+              <div
+                style={{
+                  marginTop: "1rem",
+                  background: darkMode ? panelBlue : panelLight,
+                  padding: "1rem",
+                  border: `4px solid ${frame}`,
+                  fontFamily: "monospace",
+                  color: ink,
+                  lineHeight: 1.7,
+                  flex: 1,
+                  overflow: "auto",
+                  ...pixelBorder(2),
+                }}
+              >
+                {(config as any).sections?.map((sec: any, i: number) => (
                   <div key={i} style={{ marginBottom: "1.1rem" }}>
                     <div style={{ fontSize: "1.35rem", fontWeight: 900, marginBottom: 6, color: ink }}>
                       {sec.url ? (
@@ -1151,40 +1226,297 @@ function WhiteboardModal({
                     </div>
                     <div style={{ fontSize: "1.05rem", color: ink }} dangerouslySetInnerHTML={{ __html: sec.body }} />
                   </div>
-                ))
-              ) : (
-                <div style={{ fontSize: "1.05rem", color: ink }}>
-                  No content yet. Add <code>sections</code> to this board to populate it.
+                ))}
+                <div style={{ height: 24 }} />
+                <p style={{ color: ink }}>Tip: Press <b>ESC</b> or <b>Q</b> to close. Everything here scrolls.</p>
+              </div>
+            </div>
+
+            {/* RIGHT: images */}
+            <div
+              style={{
+                width: 420,
+                display: "flex",
+                flexDirection: "column",
+                gap: 12,
+                minWidth: 0,
+                overflow: "auto",
+              }}
+            >
+              {images.map((src: string, idx: number) => (
+                <div
+                  key={idx}
+                  style={{
+                    width: "100%",
+                    border: `4px solid ${frame}`,
+                    background: "#ffffff",
+                    boxShadow:
+                      "0 0 0 6px #111827, 0 0 0 12px #6b7280, 0 0 0 18px #111827",
+                  }}
+                >
+                  <img
+                    src={src}
+                    alt={`${config.title} ${idx + 1}`}
+                    style={{ width: "100%", height: 360, objectFit: "cover", imageRendering: "pixelated", filter: "none" }}
+                  />
                 </div>
-              )}
-              <div style={{ height: 24 }} />
-              <p style={{ color: ink }}>
-                Tip: Press <b>ESC</b> or <b>Q</b> to close. Everything here scrolls.
-              </p>
+              ))}
             </div>
           </div>
+        </div>
+      )}
 
-          <div style={{ width: 420, display: "flex", flexDirection: "column", alignItems: "stretch", gap: 12, minWidth: 0, overflow: "auto" }}>
-            {(((config as any).images) ?? ((config as any).image ? [(config as any).image] : [])).map((src: string, idx: number) => (
+      {/* MOBILE: tabbed + swipeable */}
+      {isMobile && (
+        <div
+          onMouseDown={(e) => e.stopPropagation()}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: paper,
+            display: "flex",
+            flexDirection: "column",
+            ...pixelTile,
+          }}
+        >
+          {/* sticky header */}
+          <div
+            style={{
+              position: "sticky",
+              top: 0,
+              zIndex: 2,
+              padding: "10px 12px",
+              borderBottom: `6px solid #14532d`,
+              background: "linear-gradient(#16a34a, #16a34a)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              ...pixelBorder(0),
+            }}
+          >
+            <div
+              style={{
+                marginLeft: 8,
+                padding: "6px 10px",
+                border: `4px solid ${frame}`,
+                background: darkMode ? "#18243a" : "#fefefe",
+                fontFamily: "monospace",
+                fontWeight: 900,
+                color: darkMode ? "#ffffff" : "#0f172a",
+                ...pixelBorder(2),
+              }}
+            >
+              {config.title.toUpperCase()}
+            </div>
+            <button
+              onClick={onClose}
+              style={{
+                marginRight: 8,
+                padding: "8px 14px",
+                background: "#22c55e",
+                color: "#0b2e13",
+                border: "4px solid #14532d",
+                fontFamily: "monospace",
+                fontWeight: 900,
+                ...pixelBorder(2),
+              }}
+              aria-label="Close"
+            >
+              EXIT
+            </button>
+          </div>
+
+          {/* tabs */}
+          <div
+            role="tablist"
+            aria-label="Content tabs"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 8,
+              padding: "10px",
+            }}
+          >
+            {(["info", "gallery"] as const).map((t) => {
+              const selected = tab === t;
+              return (
+                <button
+                  key={t}
+                  role="tab"
+                  aria-selected={selected}
+                  onClick={() => setTab(t)}
+                  style={{
+                    padding: "10px 12px",
+                    border: `4px solid ${frame}`,
+                    fontFamily: "monospace",
+                    fontWeight: 900,
+                    letterSpacing: 1,
+                    background: selected
+                      ? (darkMode ? "#18243a" : "#fefefe")
+                      : (darkMode ? "#0b1220" : "#e5e7eb"),
+                    color: selected ? (darkMode ? "#fff" : "#0f172a") : (darkMode ? "#9fb3c8" : "#374151"),
+                    ...pixelBorder(2),
+                  }}
+                >
+                  {t === "info" ? "INFO" : "GALLERY"}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* panels */}
+          <div style={{ flex: 1, minHeight: 0 }}>
+            {/* INFO panel */}
+            {tab === "info" && (
               <div
-                key={idx}
+                role="tabpanel"
+                aria-labelledby="INFO"
                 style={{
-                  width: "100%",
-                  border: `4px solid ${frame}`,
-                  background: "#ffffff",
-                  boxShadow: "0 0 0 6px #111827, 0 0 0 12px #6b7280, 0 0 0 18px #111827",
+                  height: "100%",
+                  overflow: "auto",
+                  padding: "10px",
                 }}
               >
-                <img
-                  src={src}
-                  alt={`${config.title} ${idx + 1}`}
-                  style={{ width: "100%", height: 360, objectFit: "cover", imageRendering: "pixelated", filter: "none" }}
-                />
+                <div
+                  style={{
+                    background: darkMode ? panelBlue : panelLight,
+                    padding: "1rem",
+                    border: `4px solid ${frame}`,
+                    color: ink,
+                    lineHeight: 1.7,
+                    fontFamily: "monospace",
+                    ...pixelBorder(2),
+                  }}
+                >
+                  {(config as any).sections?.map((sec: any, i: number) => (
+                    <div key={i} style={{ marginBottom: "1.1rem" }}>
+                      <div style={{ fontSize: "1.15rem", fontWeight: 900, marginBottom: 6, color: ink }}>
+                        {sec.url ? (
+                          <a
+                            href={sec.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ color: darkMode ? "#93c5fd" : "#0f172a", textDecoration: "underline" }}
+                          >
+                            {sec.title}
+                          </a>
+                        ) : (
+                          sec.title
+                        )}
+                      </div>
+                      <div style={{ fontSize: "1rem" }} dangerouslySetInnerHTML={{ __html: sec.body }} />
+                    </div>
+                  ))}
+                  <p style={{ opacity: 0.85, marginTop: 12 }}>
+                    Tip: You can switch tabs anytime. ESC / Q to close.
+                  </p>
+                </div>
               </div>
-            ))}
+            )}
+
+            {/* GALLERY panel */}
+            {tab === "gallery" && (
+              <div
+                role="tabpanel"
+                aria-labelledby="GALLERY"
+                style={{
+                  height: "100%",
+                  display: "grid",
+                  gridTemplateRows: "1fr auto",
+                }}
+              >
+                <div
+                  ref={scrollerRef}
+                  onScroll={onScroll}
+                  style={{
+                    overflowX: "auto",
+                    overflowY: "hidden",
+                    scrollSnapType: "x mandatory",
+                    display: "grid",
+                    gridAutoFlow: "column",
+                    gridAutoColumns: "100%",
+                    gap: 12,
+                    padding: "10px",
+                    WebkitOverflowScrolling: "touch",
+                    touchAction: "pan-x pan-y",
+                  }}
+                >
+                  {images.map((src: string, i: number) => (
+                    <div
+                      key={i}
+                      style={{
+                        scrollSnapAlign: "start",
+                        display: "grid",
+                        alignContent: "start",
+                        border: `4px solid ${frame}`,
+                        background: "#ffffff",
+                        ...pixelBorder(2),
+                      }}
+                    >
+                      <img
+                        src={src}
+                        alt={`${config.title} ${i + 1}`}
+                        style={{
+                          width: "100%",
+                          height: "calc(100vh - 220px)",
+                          objectFit: "cover",
+                          imageRendering: "pixelated",
+                          filter: "none",
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                {/* controls + dots */}
+                <div style={{ padding: "0 10px 12px" }}>
+                  <GalleryDots />
+                  <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+                    <button
+                      onClick={() =>
+                        scrollerRef.current?.scrollBy({
+                          left: -Math.max(1, scrollerRef.current.clientWidth),
+                          behavior: "smooth",
+                        })
+                      }
+                      style={{
+                        padding: "8px 14px",
+                        background: "#e5e7eb",
+                        border: `4px solid ${frame}`,
+                        fontFamily: "monospace",
+                        fontWeight: 900,
+                        ...pixelBorder(2),
+                      }}
+                      aria-label="Previous image"
+                    >
+                      ◀
+                    </button>
+                    <button
+                      onClick={() =>
+                        scrollerRef.current?.scrollBy({
+                          left: Math.max(1, scrollerRef.current.clientWidth),
+                          behavior: "smooth",
+                        })
+                      }
+                      style={{
+                        padding: "8px 14px",
+                        background: "#e5e7eb",
+                        border: `4px solid ${frame}`,
+                        fontFamily: "monospace",
+                        fontWeight: 900,
+                        ...pixelBorder(2),
+                      }}
+                      aria-label="Next image"
+                    >
+                      ▶
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -2198,7 +2530,7 @@ function ThickSkySign({ text, rgbActive, darkMode }: { text: string; rgbActive: 
       }
     }
     ctx.fillStyle = darkMode ? "#000" : "#fff";
-    ctx.font = "900 150px 'Press Start 2P', monospace";
+    ctx.font = "700 100px 'Press Start 2P', monospace";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(text.toUpperCase(), c.width / 2, c.height / 2 + 10);
