@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type JSX } from "react";
+import { useEffect, useMemo, useRef, useState, type JSX, type Key } from "react";
 import { Canvas, useFrame, useThree, useLoader } from "@react-three/fiber";
 import * as THREE from "three";
 
@@ -1004,182 +1004,24 @@ function ImageModal({
 }
 
 /* ---------- Hook: responsive breakpoint ---------- */
+function useIsMobile(bp = 900) {
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== "undefined"
+      ? IS_TOUCH || window.innerWidth <= bp
+      : false
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width:${bp}px)`);
+    const on = () => setIsMobile(IS_TOUCH || mq.matches);
+    on();
+    mq.addEventListener?.("change", on);
+    return () => mq.removeEventListener?.("change", on);
+  }, [bp]);
+  return isMobile;
+}
 
 /* ---------- Whiteboard Modal (responsive) ---------- */
-// Detects current orientation so we can size the carousel nicely
-function useLandscape() {
-  const [land, setLand] = useState(
-    typeof window !== "undefined" &&
-      window.matchMedia("(orientation: landscape)").matches
-  );
-  useEffect(() => {
-    const m = window.matchMedia("(orientation: landscape)");
-    const on = () => setLand(m.matches);
-    m.addEventListener?.("change", on);
-    return () => m.removeEventListener?.("change", on);
-  }, []);
-  return land;
-}
 
-// Perfectly centered, snap-by-slide mobile carousel (no clipping)
-function MobileCarousel({
-  images,
-  altPrefix = "slide",
-}: {
-  images: string[];
-  altPrefix?: string;
-}) {
-  const wrapRef = useRef<HTMLDivElement | null>(null);
-  const isLandscape = useLandscape();
-  const [idx, setIdx] = useState(0);
-
-  useEffect(() => {
-    const el = wrapRef.current;
-    if (!el) return;
-    const onScroll = () => {
-      const w = el.clientWidth || 1;
-      setIdx(Math.round(el.scrollLeft / w));
-    };
-    el.addEventListener("scroll", onScroll, { passive: true });
-    return () => el.removeEventListener("scroll", onScroll);
-  }, []);
-
-  const go = (n: number) => {
-    const el = wrapRef.current;
-    if (!el) return;
-    const next = Math.max(0, Math.min(images.length - 1, n));
-    el.scrollTo({ left: next * el.clientWidth, behavior: "smooth" });
-    setIdx(next);
-  };
-
-  const scroller: React.CSSProperties = {
-    position: "relative",
-    display: "flex",
-    width: "100%",
-    height: isLandscape ? "80vh" : "58vh",
-    overflowX: "auto",
-    overflowY: "hidden",
-    scrollSnapType: "x mandatory",
-    WebkitOverflowScrolling: "touch",
-    scrollBehavior: "smooth",
-    gap: 0,
-    padding: 0,
-    margin: 0,
-  };
-  const slide: React.CSSProperties = {
-    flex: "0 0 100%",
-    width: "100%",
-    height: "100%",
-    scrollSnapAlign: "center",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  };
-  const imgStyle: React.CSSProperties = {
-    maxWidth: "100%",
-    maxHeight: "100%",
-    objectFit: "contain",
-    objectPosition: "center",
-    imageRendering: "pixelated",
-    filter: "none",
-  };
-
-  if (!images?.length) {
-    return (
-      <div style={{ ...scroller, alignItems: "center", justifyContent: "center" }}>
-        <div style={{ color: "#111827", opacity: 0.7, fontFamily: "monospace" }}>
-          No images
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ position: "relative" }}>
-      <div ref={wrapRef} style={scroller}>
-        {images.map((src, i) => (
-          <div key={i} style={slide} aria-roledescription="slide">
-            <img src={src} alt={`${altPrefix} ${i + 1}`} style={imgStyle} />
-          </div>
-        ))}
-      </div>
-
-      {/* Arrows */}
-      <button
-        aria-label="Previous image"
-        onClick={() => go(idx - 1)}
-        disabled={idx === 0}
-        style={{
-          position: "absolute",
-          left: 8,
-          top: "50%",
-          transform: "translateY(-50%)",
-          background: "rgba(0,0,0,0.35)",
-          color: "#fff",
-          border: "3px solid #111827",
-          borderRadius: 12,
-          padding: "8px 10px",
-          cursor: "pointer",
-        }}
-      >
-        ◀
-      </button>
-      <button
-        aria-label="Next image"
-        onClick={() => go(idx + 1)}
-        disabled={idx >= images.length - 1}
-        style={{
-          position: "absolute",
-          right: 8,
-          top: "50%",
-          transform: "translateY(-50%)",
-          background: "rgba(0,0,0,0.35)",
-          color: "#fff",
-          border: "3px solid #111827",
-          borderRadius: 12,
-          padding: "8px 10px",
-          cursor: "pointer",
-        }}
-      >
-        ▶
-      </button>
-
-      {/* Dots */}
-      <div
-        role="tablist"
-        aria-label="Image slides"
-        style={{
-          position: "absolute",
-          bottom: 6,
-          left: "50%",
-          transform: "translateX(-50%)",
-          display: "flex",
-          gap: 6,
-          padding: 6,
-          background: "rgba(0,0,0,0.30)",
-          borderRadius: 999,
-        }}
-      >
-        {images.map((_, i) => (
-          <button
-            key={i}
-            role="tab"
-            aria-selected={i === idx}
-            aria-label={`Go to slide ${i + 1}`}
-            onClick={() => go(i)}
-            style={{
-              width: 10,
-              height: 10,
-              borderRadius: 999,
-              border: "2px solid #e5e7eb",
-              background: i === idx ? "#e5e7eb" : "transparent",
-            }}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
 function WhiteboardModal({
   config,
   onClose,
@@ -1189,50 +1031,83 @@ function WhiteboardModal({
   onClose: () => void;
   darkMode: boolean;
 }) {
-  // ESC / Q closes
+  const isMobile = useIsMobile(980);
+  const [tab, setTab] = useState<"info" | "gallery">("info");
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const [activeIdx, setActiveIdx] = useState(0);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" || e.key.toLowerCase() === "q") onClose();
+      // gallery keyboard nav
+      if (isMobile && tab === "gallery" && scrollerRef.current) {
+        if (e.key === "ArrowRight")
+          scrollerRef.current.scrollBy({ left: scrollerRef.current.clientWidth, behavior: "smooth" });
+        if (e.key === "ArrowLeft")
+          scrollerRef.current.scrollBy({ left: -scrollerRef.current.clientWidth, behavior: "smooth" });
+      }
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+    // prevent background scroll while open
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose, isMobile, tab]);
 
-  // tiny helpers kept local so this is self-contained
+  // colors & textures
   const pixelBorder = (thick = 6) => ({
-    boxShadow: `0 0 0 ${thick}px #111827, 0 0 0 ${thick * 2}px #6b7280, 0 0 0 ${thick * 3}px #111827` as string,
+    boxShadow: `0 0 0 ${thick}px #111827, 0 0 0 ${thick * 2}px #6b7280, 0 0 0 ${thick * 3}px #111827` as const,
   });
   const pixelTile = {
     backgroundImage:
       "repeating-linear-gradient(45deg, #9b6b43 0 16px, #8d5e37 16px 32px, #a7744d 32px 48px)",
     imageRendering: "pixelated" as const,
   };
-  const grassStrip = {
-    background: "linear-gradient(#16a34a, #16a34a)",
-    height: 24,
-    width: "100%",
-    borderBottom: "6px solid #14532d",
-  } as const;
-
-  // palette
   const paper = darkMode ? "#cbaa86" : "#d6c2a5";
-  const ink = darkMode ? "#e5e7eb" : "#111827";
   const frame = darkMode ? "#0b1220" : "#0f172a";
+  const ink = darkMode ? "#e5e7eb" : "#111827";
   const panelBlue = "#0e1e2f";
   const panelLight = "#ffffff";
-  const overlayBg =
-    "linear-gradient(rgba(116,76,41,0.65), rgba(116,76,41,0.65))";
-
-  // responsive switch
-  const isPhone =
-    IS_TOUCH && typeof window !== "undefined" && window.innerWidth < 900;
+  const overlayBg = "linear-gradient(rgba(116,76,41,0.65), rgba(116,76,41,0.65))";
 
   const images =
     (config as any).images ??
     ((config as any).image ? [(config as any).image] : []);
 
+  // track active slide for dots
+  const onScroll = () => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const i = Math.round(el.scrollLeft / Math.max(1, el.clientWidth));
+    setActiveIdx(Math.max(0, Math.min(i, images.length - 1)));
+  };
+
+  const GalleryDots = () => (
+    <div style={{ display: "flex", gap: 8, justifyContent: "center", padding: "8px 0" }} aria-hidden="true">
+      {images.map((_: any, i: Key | null | undefined) => (
+        <div
+          key={i}
+          style={{
+            width: i === activeIdx ? 14 : 8,
+            height: 8,
+            borderRadius: 6,
+            background: i === activeIdx ? "#22c55e" : "#94a3b8",
+            transition: "width 150ms",
+          }}
+        />
+      ))}
+    </div>
+  );
+
+  // shared overlay wrapper (click outside to close)
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${config.title} modal`}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -1244,105 +1119,11 @@ function WhiteboardModal({
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
-        padding: isPhone ? "0.75rem" : "2rem",
+        padding: isMobile ? "0" : "2rem",
       }}
     >
-      {isPhone ? (
-        /* ======== MOBILE (portrait & landscape) ======== */
-        <div
-          onMouseDown={(e) => e.stopPropagation()}
-          style={{
-            width: "100%",
-            height: "100%",
-            background: paper,
-            display: "flex",
-            flexDirection: "column",
-            overflow: "hidden",
-          }}
-        >
-          {/* top bar */}
-          <div
-            style={{
-              flex: "0 0 auto",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "10px 12px",
-              borderBottom: `4px solid ${frame}`,
-              background: darkMode ? "#18243a" : "#fefefe",
-              fontFamily: "monospace",
-              fontWeight: 900,
-            }}
-          >
-            <span style={{ fontSize: 18 }}>{config.title.toUpperCase()}</span>
-            <button
-              onClick={onClose}
-              style={{
-                padding: "8px 12px",
-                background: "#22c55e",
-                color: "#0b2e13",
-                border: "3px solid #14532d",
-                borderRadius: 8,
-                fontWeight: 900,
-              }}
-            >
-              EXIT
-            </button>
-          </div>
-
-          {/* centered, snap-scrolling image carousel */}
-          <div style={{ flex: "1 1 auto", minHeight: 0 }}>
-            <MobileCarousel images={images} altPrefix={config.title} />
-          </div>
-
-          {/* scrollable text panel */}
-          <div
-            style={{
-              flex: "0 0 auto",
-              maxHeight: "42vh",
-              overflow: "auto",
-              padding: "12px",
-              borderTop: `4px solid ${frame}`,
-              background: darkMode ? panelBlue : panelLight,
-              color: ink,
-              fontFamily: "monospace",
-              lineHeight: 1.7,
-            }}
-          >
-            {Array.isArray((config as any).sections) ? (
-              (config as any).sections.map((sec: any, i: number) => (
-                <div key={i} style={{ marginBottom: 14 }}>
-                  <div style={{ fontWeight: 900, marginBottom: 6 }}>
-                    {sec.url ? (
-                      <a
-                        href={sec.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          color: darkMode ? "#93c5fd" : "#0f172a",
-                          textDecoration: "underline",
-                        }}
-                      >
-                        {sec.title}
-                      </a>
-                    ) : (
-                      sec.title
-                    )}
-                  </div>
-                  <div
-                    style={{ fontSize: 15 }}
-                    dangerouslySetInnerHTML={{ __html: sec.body }}
-                  />
-                </div>
-              ))
-            ) : (
-              <div>No content yet.</div>
-            )}
-            <div style={{ height: 12 }} />
-          </div>
-        </div>
-      ) : (
-        /* ======== DESKTOP (unchanged look, better structure) ======== */
+      {/* DESKTOP: existing split layout */}
+      {!isMobile && (
         <div
           onMouseDown={(e) => e.stopPropagation()}
           style={{
@@ -1350,7 +1131,6 @@ function WhiteboardModal({
             width: "92vw",
             height: "92vh",
             background: paper,
-            borderRadius: 0,
             overflow: "hidden",
             display: "flex",
             flexDirection: "column",
@@ -1358,8 +1138,14 @@ function WhiteboardModal({
             ...pixelTile,
           }}
         >
-          <div style={grassStrip} />
-
+          <div
+            style={{
+              background: "linear-gradient(#16a34a, #16a34a)",
+              height: 24,
+              width: "100%",
+              borderBottom: "6px solid #14532d",
+            }}
+          />
           <button
             onClick={onClose}
             title="ESC also closes"
@@ -1392,7 +1178,7 @@ function WhiteboardModal({
               overflow: "hidden",
             }}
           >
-            {/* LEFT: title + scrollable content */}
+            {/* LEFT: text */}
             <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
               <div
                 style={{
@@ -1409,7 +1195,6 @@ function WhiteboardModal({
               >
                 {config.title.toUpperCase()}
               </div>
-
               <div
                 style={{
                   marginTop: "1rem",
@@ -1424,58 +1209,36 @@ function WhiteboardModal({
                   ...pixelBorder(2),
                 }}
               >
-                {Array.isArray((config as any).sections) ? (
-                  (config as any).sections.map((sec: any, i: number) => (
-                    <div key={i} style={{ marginBottom: "1.1rem" }}>
-                      <div
-                        style={{
-                          fontSize: "1.35rem",
-                          fontWeight: 900,
-                          marginBottom: 6,
-                          color: ink,
-                        }}
-                      >
-                        {sec.url ? (
-                          <a
-                            href={sec.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{
-                              color: darkMode ? "#93c5fd" : "#0f172a",
-                              textDecoration: "underline",
-                            }}
-                          >
-                            {sec.title}
-                          </a>
-                        ) : (
-                          sec.title
-                        )}
-                      </div>
-                      <div
-                        style={{ fontSize: "1.05rem", color: ink }}
-                        dangerouslySetInnerHTML={{ __html: sec.body }}
-                      />
+                {(config as any).sections?.map((sec: any, i: number) => (
+                  <div key={i} style={{ marginBottom: "1.1rem" }}>
+                    <div style={{ fontSize: "1.35rem", fontWeight: 900, marginBottom: 6, color: ink }}>
+                      {sec.url ? (
+                        <a
+                          href={sec.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ color: darkMode ? "#93c5fd" : "#0f172a", textDecoration: "underline" }}
+                        >
+                          {sec.title}
+                        </a>
+                      ) : (
+                        sec.title
+                      )}
                     </div>
-                  ))
-                ) : (
-                  <div style={{ fontSize: "1.05rem", color: ink }}>
-                    No content yet. Add <code>sections</code> to this board.
+                    <div style={{ fontSize: "1.05rem", color: ink }} dangerouslySetInnerHTML={{ __html: sec.body }} />
                   </div>
-                )}
+                ))}
                 <div style={{ height: 24 }} />
-                <p style={{ color: ink }}>
-                  Tip: Press <b>ESC</b> or <b>Q</b> to close. Everything here scrolls.
-                </p>
+                <p style={{ color: ink }}>Tip: Press <b>ESC</b> or <b>Q</b> to close. Everything here scrolls.</p>
               </div>
             </div>
 
-            {/* RIGHT: image column (kept colored) */}
+            {/* RIGHT: images */}
             <div
               style={{
                 width: 420,
                 display: "flex",
                 flexDirection: "column",
-                alignItems: "stretch",
                 gap: 12,
                 minWidth: 0,
                 overflow: "auto",
@@ -1495,13 +1258,7 @@ function WhiteboardModal({
                   <img
                     src={src}
                     alt={`${config.title} ${idx + 1}`}
-                    style={{
-                      width: "100%",
-                      height: 360,
-                      objectFit: "cover",
-                      imageRendering: "pixelated",
-                      filter: "none",
-                    }}
+                    style={{ width: "100%", height: 360, objectFit: "cover", imageRendering: "pixelated", filter: "none" }}
                   />
                 </div>
               ))}
@@ -1509,10 +1266,261 @@ function WhiteboardModal({
           </div>
         </div>
       )}
+
+      {/* MOBILE: tabbed + swipeable */}
+      {isMobile && (
+        <div
+          onMouseDown={(e) => e.stopPropagation()}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: paper,
+            display: "flex",
+            flexDirection: "column",
+            ...pixelTile,
+          }}
+        >
+          {/* sticky header */}
+          <div
+            style={{
+              position: "sticky",
+              top: 0,
+              zIndex: 2,
+              padding: "10px 12px",
+              borderBottom: `6px solid #14532d`,
+              background: "linear-gradient(#16a34a, #16a34a)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              ...pixelBorder(0),
+            }}
+          >
+            <div
+              style={{
+                marginLeft: 8,
+                padding: "6px 10px",
+                border: `4px solid ${frame}`,
+                background: darkMode ? "#18243a" : "#fefefe",
+                fontFamily: "monospace",
+                fontWeight: 900,
+                color: darkMode ? "#ffffff" : "#0f172a",
+                ...pixelBorder(2),
+              }}
+            >
+              {config.title.toUpperCase()}
+            </div>
+            <button
+              onClick={onClose}
+              style={{
+                marginRight: 8,
+                padding: "8px 14px",
+                background: "#22c55e",
+                color: "#0b2e13",
+                border: "4px solid #14532d",
+                fontFamily: "monospace",
+                fontWeight: 900,
+                ...pixelBorder(2),
+              }}
+              aria-label="Close"
+            >
+              EXIT
+            </button>
+          </div>
+
+          {/* tabs */}
+          <div
+            role="tablist"
+            aria-label="Content tabs"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 8,
+              padding: "10px",
+            }}
+          >
+            {(["info", "gallery"] as const).map((t) => {
+              const selected = tab === t;
+              return (
+                <button
+                  key={t}
+                  role="tab"
+                  aria-selected={selected}
+                  onClick={() => setTab(t)}
+                  style={{
+                    padding: "10px 12px",
+                    border: `4px solid ${frame}`,
+                    fontFamily: "monospace",
+                    fontWeight: 900,
+                    letterSpacing: 1,
+                    background: selected
+                      ? (darkMode ? "#18243a" : "#fefefe")
+                      : (darkMode ? "#0b1220" : "#e5e7eb"),
+                    color: selected ? (darkMode ? "#fff" : "#0f172a") : (darkMode ? "#9fb3c8" : "#374151"),
+                    ...pixelBorder(2),
+                  }}
+                >
+                  {t === "info" ? "INFO" : "GALLERY"}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* panels */}
+          <div style={{ flex: 1, minHeight: 0 }}>
+            {/* INFO panel */}
+            {tab === "info" && (
+              <div
+                role="tabpanel"
+                aria-labelledby="INFO"
+                style={{
+                  height: "100%",
+                  overflow: "auto",
+                  padding: "10px",
+                }}
+              >
+                <div
+                  style={{
+                    background: darkMode ? panelBlue : panelLight,
+                    padding: "1rem",
+                    border: `4px solid ${frame}`,
+                    color: ink,
+                    lineHeight: 1.7,
+                    fontFamily: "monospace",
+                    ...pixelBorder(2),
+                  }}
+                >
+                  {(config as any).sections?.map((sec: any, i: number) => (
+                    <div key={i} style={{ marginBottom: "1.1rem" }}>
+                      <div style={{ fontSize: "1.15rem", fontWeight: 900, marginBottom: 6, color: ink }}>
+                        {sec.url ? (
+                          <a
+                            href={sec.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ color: darkMode ? "#93c5fd" : "#0f172a", textDecoration: "underline" }}
+                          >
+                            {sec.title}
+                          </a>
+                        ) : (
+                          sec.title
+                        )}
+                      </div>
+                      <div style={{ fontSize: "1rem" }} dangerouslySetInnerHTML={{ __html: sec.body }} />
+                    </div>
+                  ))}
+                  <p style={{ opacity: 0.85, marginTop: 12 }}>
+                    Tip: You can switch tabs anytime. ESC / Q to close.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* GALLERY panel */}
+            {tab === "gallery" && (
+              <div
+                role="tabpanel"
+                aria-labelledby="GALLERY"
+                style={{
+                  height: "100%",
+                  display: "grid",
+                  gridTemplateRows: "1fr auto",
+                }}
+              >
+                <div
+                  ref={scrollerRef}
+                  onScroll={onScroll}
+                  style={{
+                    overflowX: "auto",
+                    overflowY: "hidden",
+                    scrollSnapType: "x mandatory",
+                    display: "grid",
+                    gridAutoFlow: "column",
+                    gridAutoColumns: "100%",
+                    gap: 12,
+                    padding: "10px",
+                    WebkitOverflowScrolling: "touch",
+                    touchAction: "pan-x pan-y",
+                  }}
+                >
+                  {images.map((src: string, i: number) => (
+                    <div
+                      key={i}
+                      style={{
+                        scrollSnapAlign: "start",
+                        display: "grid",
+                        alignContent: "start",
+                        border: `4px solid ${frame}`,
+                        background: "#ffffff",
+                        ...pixelBorder(2),
+                      }}
+                    >
+                      <img
+                        src={src}
+                        alt={`${config.title} ${i + 1}`}
+                        style={{
+                          width: "100%",
+                          height: "calc(100vh - 220px)",
+                          objectFit: "cover",
+                          imageRendering: "pixelated",
+                          filter: "none",
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                {/* controls + dots */}
+                <div style={{ padding: "0 10px 12px" }}>
+                  <GalleryDots />
+                  <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+                    <button
+                      onClick={() =>
+                        scrollerRef.current?.scrollBy({
+                          left: -Math.max(1, scrollerRef.current.clientWidth),
+                          behavior: "smooth",
+                        })
+                      }
+                      style={{
+                        padding: "8px 14px",
+                        background: "#e5e7eb",
+                        border: `4px solid ${frame}`,
+                        fontFamily: "monospace",
+                        fontWeight: 900,
+                        ...pixelBorder(2),
+                      }}
+                      aria-label="Previous image"
+                    >
+                      ◀
+                    </button>
+                    <button
+                      onClick={() =>
+                        scrollerRef.current?.scrollBy({
+                          left: Math.max(1, scrollerRef.current.clientWidth),
+                          behavior: "smooth",
+                        })
+                      }
+                      style={{
+                        padding: "8px 14px",
+                        background: "#e5e7eb",
+                        border: `4px solid ${frame}`,
+                        fontFamily: "monospace",
+                        fontWeight: 900,
+                        ...pixelBorder(2),
+                      }}
+                      aria-label="Next image"
+                    >
+                      ▶
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-
 
 /* ---------- Crosshair ---------- */
 function Crosshair({ enabled = true }: { enabled?: boolean }) {
