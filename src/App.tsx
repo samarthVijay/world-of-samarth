@@ -158,21 +158,31 @@ const WHITEBOARD_CONFIG = [
       {
         title: "Jetbot Autonomous Vehicle",
         url: "https://github.com/samarthVijay/Jetbot-Autonomous-Parking-and-Self-Driving",
-        body: `<p><b>Why I built it:</b> ...</p><p><b>Perception:</b> ... <b>Jetson Nano</b> ...</p><p><b>Control loop:</b> ...</p><p><b>Reliability:</b> ...</p>`,
+        body: `<p><b>Why I built it:</b> End-to-end ML stack for autonomous parking, collision avoidance, and lane/road following on an embedded GPU.</p>
+               <p><b>Perception:</b> Transfer-learned <b>CNNs in PyTorch</b> for object detection and free/blocked classification; <b>OpenCV</b> for preprocessing and geometry; NumPy for fast post-processing; optimized inference with <b>TensorRT/torch2trt</b> on <b>Jetson Nano</b>.</p>
+               <p><b>Control loop:</b> Camera → preprocess → model inference → steering/throttle decision → PWM motor control; tuned PID-style gains for stable parking maneuvers.</p>
+               <p><b>Reliability:</b> Dataset curation + augmentations, on-device profiling, and fallbacks for low-confidence frames; telemetry-style logs for run analysis.</p>`,
       },
       {
         title: "Embedded LIDAR Project (Object Modeling)",
         url: "https://github.com/samarthVijay/Embedded-LIDAR-Project",
-        body: `<p><b>Goal:</b> ...</p><p><b>Hardware:</b> ...</p><p><b>Pipeline:</b> ...</p><p><b>Result:</b> ...</p>`,
+        body: `<p><b>Goal:</b> Build a <i>low-cost</i> scanning LIDAR alternative that still produces usable 3D maps.</p>
+               <p><b>Hardware:</b> <b>MSP-EXP432E401Y</b> MCU driving a stepper; <b>Time-of-Flight sensor</b> over <b>I²C</b>; streamed measurements to PC via <b>UART</b>.</p>
+               <p><b>Pipeline:</b> Angle + distance → polar to Cartesian in <b>MATLAB/Python</b>; live plotter for point clouds; calibration routines for stepper offsets.</p>
+               <p><b>Result:</b> Real-time visualization of room geometry with tunable angular resolution; modular firmware in C/C++ and reproducible host scripts.</p>`,
       },
       {
         title: "C++ Snake (Terminal UI, 2-Player)",
         url: "https://github.com/samarthVijay/Snake-Game-Cpp",
-        body: `<p><b>Design:</b> ...</p><p><b>Data structures:</b> ...</p><p><b>Algorithms:</b> ...</p><p><b>Memory:</b> ...</p>`,
+        body: `<p><b>Design:</b> Cross-platform terminal game with configurable board, speeds, and 2-player mode.</p>
+               <p><b>Data structures:</b> Snake body as deque/queue for O(1) head/tail ops; grid as vector of cells.</p>
+               <p><b>Algorithms:</b> Deterministic tick loop, collision detection (self/walls/peer), fair food placement with rejection sampling.</p>
+               <p><b>Memory:</b> RAII for resources and zero raw new/delete; clean separation of model vs. renderer.</p>`,
       },
       {
         title: "Minecraft-inspired Web World (this site)",
-        body: `<p>... <b>React + @react-three/fiber</b> ...</p><p>Under the hood: ...</p>`,
+        body: `<p>Interactive portfolio world built with <b>React + TypeScript + @react-three/fiber (Three.js)</b> for WebGL rendering, posters/boards as billboards, pointer-lock navigation, and animated modals.</p>
+               <p><b>Under the hood:</b> Tailwind UI, shadcn components, modular scene graph, asset configs in YAML/TS, and GitHub-based CI/CD for reproducible builds.</p>`,
       },
     ],
     images: [
@@ -190,11 +200,23 @@ const WHITEBOARD_CONFIG = [
     sections: [
       {
         title: "MAD Elevators — IoT/Embedded Developer",
-        body: `<p>Shipped an escalator-monitoring device ...</p><ul><li>Linux gateways ... <b>UART/RS-485</b> ... <b>I²C</b>.</li><li><b>Zero-Touch Provisioning</b> ...</li><li>MosaicONE REST ...</li><li>Containers ...</li></ul>`,
+        body: `<p>Shipped an escalator-monitoring solution that reduced downtime and technician effort.</p>
+               <ul>
+                 <li>Linux gateways with embedded apps in <b>Go/Python</b>; interfaces over <b>UART/RS-485</b> and <b>I²C</b>; telemetry logging and on-device rotation.</li>
+                 <li><b>Zero-Touch Provisioning</b> via <b>Bash/PowerShell</b> to configure remote SSH, cellular networking, and OTA updates.</li>
+                 <li>Integrated with <b>MosaicONE REST API</b> for device check-ins, remote log retrievals, firmware management, and custom telemetry JSON.</li>
+                 <li>Built an internal React/Tailwind/shadcn UI for configuring telemetry and monitoring diagnostics; GitHub + YAML CI/CD pipelines for deploys.</li>
+               </ul>`,
       },
       {
         title: "Maple Leaf Foods — Automation Analyst",
-        body: `<p>Focus: ...</p><ul><li>Power Platform ... <b>~$700k</b> ...</li><li>ITSM REST ...</li><li>Microsoft Graph ...</li><li><b>Power BI</b> ...</li></ul>`,
+        body: `<p>Automated IT workflows and analytics at scale.</p>
+               <ul>
+                 <li>Microsoft Power Platform solutions estimated to save <b>~$700k</b> in IT effort.</li>
+                 <li>Ticketing automation using ITSM <b>REST</b> integrations and JSON-driven configs.</li>
+                 <li>Software provisioning at scale with <b>PowerShell</b> + <b>Microsoft Graph API</b>.</li>
+                 <li><b>Power BI</b> dashboards over large <b>SQL Server</b> datasets; governance insights and usage analytics.</li>
+               </ul>`,
       },
     ],
     images: [
@@ -208,10 +230,34 @@ const WHITEBOARD_CONFIG = [
     id: "board3",
     title: "Skills",
     sections: [
-      { title: "Embedded & Systems", body: "<ul><li>Jetson Nano ...</li><li>Debugging ...</li></ul>" },
-      { title: "ML & Computer Vision", body: "<ul><li>PyTorch ...</li><li>Data curation ...</li></ul>" },
-      { title: "Cloud & Microsoft", body: "<ul><li>REST APIs ...</li><li>SQL Server ...</li></ul>" },
-      { title: "Web", body: "<ul><li>React, TypeScript/JavaScript, Tailwind, shadcn/ui.</li></ul>" },
+      {
+        title: "Embedded & Systems",
+        body: `<ul>
+                 <li>MCUs (MSP-EXP432E401Y), <b>UART/RS-485</b>, <b>I²C</b>, PWM motor control, Linux tooling (<b>mmcli</b>), Docker.</li>
+                 <li>Deployment & ops: scripting (<b>Bash/PowerShell</b>), OTA updates, log rotation, and reproducible setups.</li>
+               </ul>`,
+      },
+      {
+        title: "ML & Computer Vision",
+        body: `<ul>
+                 <li><b>PyTorch</b>, TensorFlow, <b>TensorRT/torch2trt</b>, <b>OpenCV</b>, NumPy; CNNs and transfer learning.</li>
+                 <li>Data curation/augmentation, real-time inference on <b>Jetson Nano</b>, performance profiling.</li>
+               </ul>`,
+      },
+      {
+        title: "Cloud & Microsoft",
+        body: `<ul>
+                 <li><b>REST APIs</b> (MosaicONE, Microsoft Graph), JSON configs, SharePoint/Power Platform.</li>
+                 <li>Analytics with <b>Power BI</b> over <b>SQL Server</b>; AWS exposure for hosting/integration.</li>
+               </ul>`,
+      },
+      {
+        title: "Web",
+        body: `<ul>
+                 <li><b>React</b>, <b>TypeScript/JavaScript</b>, <b>Three.js</b> (@react-three/fiber), <b>Tailwind</b>, shadcn/ui.</li>
+                 <li>Node.js toolchain, Git/GitHub, <b>YAML-based CI/CD</b> (GitHub Actions) and static hosting.</li>
+               </ul>`,
+      },
     ],
     images: [
       "https://via.placeholder.com/360x540/fbbf24/ffffff?text=Skill+1",
