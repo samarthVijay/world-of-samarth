@@ -270,11 +270,7 @@ const WHITEBOARD_CONFIG = [
     id: "board4",
     title: "About + Contact",
     sections: [
-      { title: "About me", body: "<p>I’m Samarth — a Computer Engineering student ...</p>" },
-      {
-        title: "How I work",
-        body: "<ul><li>Bias for working prototypes ...</li><li>Prefer readable ...</li><li>Automate the boring parts ...</li></ul>",
-      },
+      { title: "About me", body: "<p>I’m Samarth — a Computer Engineering student at McMaster Univeristy with a passion in embedded systems! Currently seeking co-op oppurtunities in 2026.</p>" },
       {
         title: "Contact",
         body: `<p><a href="mailto:samarthvijay714@gmail.com" target="_blank" rel="noopener noreferrer">Email</a> · <a href="https://www.linkedin.com/in/samarth-vijay714/" target="_blank" rel="noopener noreferrer">LinkedIn</a> · <a href="https://github.com/samarthVijay" target="_blank" rel="noopener noreferrer">GitHub</a></p>`,
