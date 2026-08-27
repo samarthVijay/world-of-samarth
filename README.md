@@ -1,69 +1,60 @@
-# React + TypeScript + Vite
+# Samarth Vijay's 3D Interactive Portfolio
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Welcome to my 3D interactive portfolio, built as a Minecraft-inspired WebGL world! 
 
-Currently, two official plugins are available:
+👉 **[Explore the live website here!](https://samarthvijay.github.io/world-of-samarth/)**
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## About Me
+I'm **Samarth Vijay**, a Computer Engineering student at McMaster University (Class of 2028). I'm passionate about:
+- Firmware engineering and embedded C/Rust
+- RTL FPGA hardware acceleration and SystemVerilog
+- Edge Machine Learning (PyTorch, CUDA, OpenCV)
 
-## Expanding the ESLint configuration
+## Project Overview
+This project is an interactive 3D portfolio where you can walk around, jump on parkour platforms, enter houses, and interact with whiteboards to read about my experience and projects. It was built to showcase my web development skills alongside my hardware engineering background.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### Technologies Used
+- **React** with **TypeScript** for UI and state management
+- **Vite** for fast bundling and development
+- **@react-three/fiber** and **Three.js** for the WebGL 3D rendering
+- Procedurally generated textures for optimized performance
+- Custom AABB collision and physics engine
 
-```js
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## How to Run Locally
 
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
+If you want to run the project locally on your machine:
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/samarthVijay/world-of-samarth.git
+   cd world-of-samarth
+   ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+2. **Install dependencies:**
+   Make sure you have Node.js installed, then run:
+   ```bash
+   npm install
+   ```
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+3. **Start the development server:**
+   ```bash
+   npm run dev
+   ```
 
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+4. **Open your browser:**
+   Navigate to `http://localhost:5173/world-of-samarth/` (or the port Vite provides) to explore!
+
+## Controls
+- **WASD** to move
+- **Space** to jump
+- **F** to climb ladders
+- **Q** to enter/exit houses
+- **E** to interact with whiteboards and buttons
+- **Mouse** to look around (click to lock pointer)
+- Mobile touch controls are fully supported!
+
+## Skills
+- **Languages:** Embedded C/C++, Rust, Go, Python, Java, Assembly, SystemVerilog
+- **Embedded:** UART/RS-485, I2C, SPI, USB, Yocto, Linux BSP
+- **Machine Learning:** PyTorch, TensorFlow, CUDA, OpenCV
+- **Cloud/CI:** Docker, Kubernetes, Google BigQuery, GitHub Actions
